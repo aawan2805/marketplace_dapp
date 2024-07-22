@@ -1,0 +1,39 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/Escrow.sol": {
+      "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\ncontract Escrow {\r\n\r\n    struct Agreement {\r\n        address buyer;\r\n        address seller;\r\n        address arbitrator;\r\n        uint amount;\r\n        bool buyerIn;\r\n        bool sellerIn;\r\n        uint purchaseDateTime;\r\n        uint productId;\r\n    }\r\n\r\n    Agreement[] public agreements;\r\n\r\n    function newAgreement(address _buyer, address _seller, uint _amount, uint purchaseTime, uint productId) external returns (uint) {\r\n        require(_buyer != _seller, \"same buyer and seller\");\r\n        agreements.push(Agreement(_buyer,_seller, msg.sender, _amount, false, false, purchaseTime, productId));\r\n        return agreements.length - 1;\r\n    }\r\n\r\n    function deposit(uint _id) external payable {\r\n        if (msg.sender == agreements[_id].buyer && msg.value == agreements[_id].amount) {\r\n            agreements[_id].buyerIn = true;\r\n        }\r\n        else if (msg.sender == agreements[_id].seller && msg.value == agreements[_id].amount) {\r\n            agreements[_id].sellerIn = true;\r\n        }\r\n    }\r\n\r\n    function refund(uint _id) external {\r\n        if (msg.sender == agreements[_id].buyer && agreements[_id].buyerIn == true) {\r\n            agreements[_id].buyerIn = false;\r\n            payable(agreements[_id].buyer).transfer(agreements[_id].amount);\r\n        }\r\n        if (msg.sender == agreements[_id].seller && agreements[_id].sellerIn == true) {\r\n            agreements[_id].sellerIn = false;\r\n            payable(agreements[_id].seller).transfer(agreements[_id].amount);\r\n        }\r\n    }\r\n\r\n    function complete(uint _id, address _winner) external {\r\n        require(msg.sender == agreements[_id].arbitrator, \"Only arbitrator can complete\");\r\n        require(agreements[_id].buyerIn == true, \"buyer has not paid\");\r\n        require(agreements[_id].sellerIn == true, \"seller has not paid\");\r\n        \r\n        if (agreements[_id].buyer == _winner) {\r\n            agreements[_id].buyerIn = false;\r\n            agreements[_id].sellerIn = false;\r\n            payable(agreements[_id].buyer).transfer(agreements[_id].amount * 2);\r\n        }\r\n        else if (agreements[_id].seller == _winner) {\r\n            agreements[_id].buyerIn = false;\r\n            agreements[_id].sellerIn = false;\r\n            payable(agreements[_id].seller).transfer(agreements[_id].amount * 2);\r\n        }\r\n    }\r\n}"
+    },
+    "contracts/Lock.sol": {
+      "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.24;\n\n// Uncomment this line to use console.log\n// import \"hardhat/console.sol\";\n\ncontract Lock {\n    uint public unlockTime;\n    address payable public owner;\n\n    event Withdrawal(uint amount, uint when);\n\n    constructor(uint _unlockTime) payable {\n        require(\n            block.timestamp < _unlockTime,\n            \"Unlock time should be in the future\"\n        );\n\n        unlockTime = _unlockTime;\n        owner = payable(msg.sender);\n    }\n\n    function withdraw() public {\n        // Uncomment this line, and the import of \"hardhat/console.sol\", to print a log in your terminal\n        // console.log(\"Unlock time is %o and block timestamp is %o\", unlockTime, block.timestamp);\n\n        require(block.timestamp >= unlockTime, \"You can't withdraw yet\");\n        require(msg.sender == owner, \"You aren't the owner\");\n\n        emit Withdrawal(address(this).balance, block.timestamp);\n\n        owner.transfer(address(this).balance);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "evmVersion": "paris",
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
