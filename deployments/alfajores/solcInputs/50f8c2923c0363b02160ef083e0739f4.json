@@ -1,0 +1,39 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/Escrow.sol": {
+      "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\ncontract Escrow {\r\n\r\n    struct Agreement {\r\n        address buyer;\r\n        address seller;\r\n        address arbitrator;\r\n        uint amount;\r\n        bool buyerIn;\r\n        bool sellerIn;\r\n        uint purchaseDateTime;\r\n        uint productId;\r\n    }\r\n\r\n    Agreement[] public agreements;\r\n\r\n    function newAgreement(address _buyer, address _seller, uint _amount, uint purchaseTime, uint productId) external returns (uint) {\r\n        require(_buyer != _seller, \"same buyer and seller\");\r\n        agreements.push(Agreement(_buyer,_seller, msg.sender, _amount, false, false, purchaseTime, productId));\r\n        return agreements.length - 1;\r\n    }\r\n\r\n    function deposit(uint _id) external payable {\r\n        if (msg.sender == agreements[_id].buyer && msg.value == agreements[_id].amount) {\r\n            agreements[_id].buyerIn = true;\r\n        }\r\n        else if (msg.sender == agreements[_id].seller && msg.value == agreements[_id].amount) {\r\n            agreements[_id].sellerIn = true;\r\n        }\r\n    }\r\n\r\n    function refund(uint _id) external {\r\n        if (msg.sender == agreements[_id].buyer && agreements[_id].buyerIn == true) {\r\n            agreements[_id].buyerIn = false;\r\n            payable(agreements[_id].buyer).transfer(agreements[_id].amount);\r\n        }\r\n        if (msg.sender == agreements[_id].seller && agreements[_id].sellerIn == true) {\r\n            agreements[_id].sellerIn = false;\r\n            payable(agreements[_id].seller).transfer(agreements[_id].amount);\r\n        }\r\n    }\r\n\r\n    function complete(uint _id, address _winner) external {\r\n        require(msg.sender == agreements[_id].arbitrator, \"Only arbitrator can complete\");\r\n        require(agreements[_id].buyerIn == true, \"buyer has not paid\");\r\n        require(agreements[_id].sellerIn == true, \"seller has not paid\");\r\n        \r\n        if (agreements[_id].buyer == _winner) {\r\n            agreements[_id].buyerIn = false;\r\n            agreements[_id].sellerIn = false;\r\n            payable(agreements[_id].buyer).transfer(agreements[_id].amount * 2);\r\n        }\r\n        else if (agreements[_id].seller == _winner) {\r\n            agreements[_id].buyerIn = false;\r\n            agreements[_id].sellerIn = false;\r\n            payable(agreements[_id].seller).transfer(agreements[_id].amount * 2);\r\n        }\r\n    }\r\n\r\n    function isProductInAgreements(uint productId) external view returns (bool) {\r\n        for (uint i = 0; i < agreements.length; i++) {\r\n            if (agreements[i].productId == productId) {\r\n                return true;\r\n            }\r\n        }\r\n        return false;\r\n    }\r\n}"
+    },
+    "contracts/Item.sol": {
+      "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\ncontract Item {\r\n\r\n    struct ItemStruct {\r\n        uint itemId;\r\n        string title;\r\n        string description;\r\n        uint price;\r\n        string image;\r\n        uint createdAt;\r\n        address buyer;\r\n        bool has_buyer;\r\n    }\r\n\r\n    mapping(address => ItemStruct[]) private items;\r\n    address[] private sellers;\r\n\r\n    function addItem(\r\n        string memory _title,\r\n        string memory _description,\r\n        uint _price,\r\n        string memory _image\r\n    ) external {\r\n        if (items[msg.sender].length == 0) {\r\n            sellers.push(msg.sender);\r\n        }\r\n        uint newItemId = items[msg.sender].length;\r\n        items[msg.sender].push(ItemStruct(\r\n            newItemId,\r\n            _title,\r\n            _description,\r\n            _price,\r\n            _image,\r\n            block.timestamp,\r\n            address(0),\r\n            false\r\n        ));\r\n    }\r\n\r\n    function editItem(\r\n        uint _itemId,\r\n        string memory _title,\r\n        string memory _description,\r\n        uint _price,\r\n        string memory _image\r\n    ) external {\r\n        require(_itemId < items[msg.sender].length, \"Item does not exist\");\r\n        ItemStruct storage item = items[msg.sender][_itemId];\r\n        require(!item.has_buyer, \"Item already sold\");\r\n\r\n        item.title = _title;\r\n        item.description = _description;\r\n        item.price = _price;\r\n        item.image = _image;\r\n    }\r\n\r\n    function deleteItem(uint _itemId) external {\r\n        require(_itemId < items[msg.sender].length, \"Item does not exist\");\r\n        ItemStruct storage item = items[msg.sender][_itemId];\r\n        require(!item.has_buyer, \"Item already sold\");\r\n\r\n        uint lastIndex = items[msg.sender].length - 1;\r\n        if (_itemId != lastIndex) {\r\n            items[msg.sender][_itemId] = items[msg.sender][lastIndex];\r\n            items[msg.sender][_itemId].itemId = _itemId;\r\n        }\r\n        items[msg.sender].pop();\r\n    }\r\n\r\n    function addBuyer(address _seller, uint _itemId) external {\r\n        require(_itemId < items[_seller].length, \"Item does not exist\");\r\n        ItemStruct storage item = items[_seller][_itemId];\r\n        require(!item.has_buyer, \"Item already sold\");\r\n\r\n        item.buyer = msg.sender;\r\n        item.has_buyer = true;\r\n    }\r\n\r\n    function retrieveUserPurchases(address _user) external view returns (ItemStruct[] memory) {\r\n        uint purchaseCount = 0;\r\n\r\n        // Count purchases across all sellers\r\n        for (uint s = 0; s < sellers.length; s++) {\r\n            address seller = sellers[s];\r\n            for (uint i = 0; i < items[seller].length; i++) {\r\n                if (items[seller][i].buyer == _user) {\r\n                    purchaseCount++;\r\n                }\r\n            }\r\n        }\r\n\r\n        // Collect purchases\r\n        ItemStruct[] memory userPurchases = new ItemStruct[](purchaseCount);\r\n        uint index = 0;\r\n        for (uint s = 0; s < sellers.length; s++) {\r\n            address seller = sellers[s];\r\n            for (uint i = 0; i < items[seller].length; i++) {\r\n                if (items[seller][i].buyer == _user) {\r\n                    userPurchases[index] = items[seller][i];\r\n                    index++;\r\n                }\r\n            }\r\n        }\r\n\r\n        return userPurchases;\r\n    }\r\n}\r\n"
+    }
+  },
+  "settings": {
+    "evmVersion": "paris",
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
