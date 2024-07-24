@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { message } from 'antd';
+import { message, Button } from 'antd';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
-import {
-  Form,
-  useLoaderData,
-  redirect,
-} from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
 
 function App() {
+  const navigate = useNavigate();
   const [account, setAccount] = useState(null);
 
   useEffect(() => {
@@ -16,13 +13,16 @@ function App() {
         try {
           // Check if the wallet is already connected
           const accounts = await window.ethereum.request({ method: "eth_accounts" });
+          console.log(accounts)
           if (accounts.length > 0) {
             setAccount(accounts[0]);
+            navigate("/home")
           } else {
             // Request connection if not connected
             const newAccounts = await window.ethereum.request({ method: "eth_requestAccounts" });
             setAccount(newAccounts[0]);
           }
+          // navigate('/home')
         } catch (error) {
           console.error("Error connecting to wallet:", error);
           message.error("Error connecting to wallet. Please try again.");
