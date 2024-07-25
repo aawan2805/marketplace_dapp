@@ -79,69 +79,41 @@ contract Item {
         }
         items[msg.sender].pop();
     }
-/*
-    function addBuyer(address _seller, uint _itemId) external {
-        require(_itemId < items[_seller].length, "Item does not exist");
-        ItemStruct storage item = items[_seller][_itemId];
-        require(!item.hasBuyer, "Item already sold");
-
-        escrowContract.createEscrow(msg.sender, _seller, _itemId, item.price);
-        item.buyer = msg.sender;
-        item.hasBuyer = true;
-    }
-
-    // function confirmDelivery(address _seller, uint _itemId) external {
-    //     require(_itemId < items[_seller].length, "Item does not exist");
-    //     ItemStruct storage item = items[_seller][_itemId];
-    //     require(msg.sender == item.buyer, "Only buyer can confirm");
-
-    //     // escrowContract.confirmDelivery(_seller, _itemId);
-    // }
-    */
 
     function retrieveUserItems() external view returns (ItemStruct[] memory) {
-        console.log("From: %s", msg.sender);
         return items[msg.sender];
     }
 
-    // function retrieveUserPurchases(address _user) external view returns (ItemStruct[] memory) {
-    //     uint itemCount = 0;
+    function browseItems() external view returns (ItemStruct[] memory) {
+        uint totalItems = 0;
+        uint currentIndex = 0;
 
-    //     // Count items the user has listed for sale
-    //     itemCount += items[_user].length;
+        // Calculate total items excluding the user's items
+        for (uint s = 0; s < sellers.length; s++) {
+            if (sellers[s] != msg.sender) {
+                totalItems += items[sellers[s]].length;
+            }
+        }
 
-    //     // Count items the user has purchased
-    //     for (uint s = 0; s < sellers.length; s++) {
-    //         address seller = sellers[s];
-    //         for (uint i = 0; i < items[seller].length; i++) {
-    //             if (items[seller][i].buyer == _user) {
-    //                 itemCount++;
-    //             }
-    //         }
-    //     }
+        // Create an array to hold all items
+        ItemStruct[] memory allItems = new ItemStruct[](totalItems);
 
-    //     ItemStruct[] memory userItems = new ItemStruct[](itemCount);
-    //     uint index = 0;
+        // Populate the array with items not created by the user
+        for (uint s = 0; s < sellers.length; s++) {
+            if (sellers[s] != msg.sender) {
+                ItemStruct[] storage sellerItems = items[sellers[s]];
+                for (uint i = 0; i < sellerItems.length; i++) {
+                    allItems[currentIndex] = sellerItems[i];
+                    currentIndex++;
+                }
+            }
+        }
 
-    //     // Add items the user has listed for sale
-    //     for (uint i = 0; i < items[_user].length; i++) {
-    //         userItems[index] = items[_user][i];
-    //         index++;
-    //     }
+        console.log("Total Items: ", totalItems);
+        console.log("Current Index: ", currentIndex);
 
-    //     // Add items the user has purchased
-    //     for (uint s = 0; s < sellers.length; s++) {
-    //         address seller = sellers[s];
-    //         for (uint i = 0; i < items[seller].length; i++) {
-    //             if (items[seller][i].buyer == _user) {
-    //                 userItems[index] = items[seller][i];
-    //                 index++;
-    //             }
-    //         }
-    //     }
-
-    //     return userItems;
-    // }
+        return allItems;
+    }
 
 }
 
