@@ -45,6 +45,8 @@ describe("Item Contract", function () {
         )
         const userItems = await contract.retrieveUserItems();
         expect(userItems[0].title).to.equal("LV shoes")
+        expect(userItems[0].price).to.equal(Number(150))
+
     })
 
 });

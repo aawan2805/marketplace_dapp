@@ -47,6 +47,7 @@ function App() {
     title: "",
     description: "",
     image: "",
+    price: "",
     itemId: "",
   });
 
@@ -81,12 +82,11 @@ function App() {
   const handleFinish = async (values) => {
     if (!contract) {
       message.error('Wallet not connected');
-      return;
+      await requestAccount();
     }
 
     const { title, description, price, image } = values;
-    console.log(price, ethers.utils.parseUnits(price.toString(), 'ether'));
-
+    
     try {
       await requestAccount();
       const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -97,7 +97,7 @@ function App() {
         signer
       );
 
-      const transaction = await itemContract.addItem(title, description, ethers.utils.parseUnits(price.toString(), 'ether'), image);
+      const transaction = await itemContract.addItem(title, description, Number(price), image);
       await transaction.wait();
 
       message.success('Item added successfully');
@@ -114,8 +114,8 @@ function App() {
         message.error('Wallet not connected');
         return;
     }
-
-    const { title, description, price, image } = values;
+    console.log(values)
+    const { title, description, price, image, itemId } = values;
     console.log(price);
     try {
         await requestAccount();
@@ -127,9 +127,10 @@ function App() {
           signer
         );
         const transaction = await itemContract.editItem(
+            Number(itemId.toString()),
             title,
             description,
-            price,
+            Number(price.toString()),
             image
         );
         console.log("OK2")
@@ -156,13 +157,13 @@ function App() {
   };
 
   const handleEditModalCancel = () => {
-    console.log("CANCEL EDIT MODAL")
     setIsEditModalVisible(false);
     setFormData({
       title: "",
       description: "",
       image: "",
       itemId: "",
+      price: "",
     });
   };
 
@@ -204,8 +205,8 @@ function App() {
         title: item.title,
         description: item.description,
         image: item.image,
-        itemId: item.itemId,
-        price: item.price,
+        itemId: Number(item.itemId.toString()),
+        price: Number(item.price.toString()),
       });
     setIsEditModalVisible(true);
   };
@@ -236,7 +237,11 @@ function App() {
               Add Item
             </Button>
           </Col>
+        </ Row>
+
           {userItems.map((item, index) => (
+          <Row>
+
             <Col span={8} key={index}>
               <Card
                 hoverable
@@ -251,11 +256,11 @@ function App() {
                 cover={<img alt="example" src={item.image} />}
               >
                 <Meta title={item.title} description={item.description} />
-                <Meta title={`${item.price} ETH`} />
+                <Meta title={`${item.price.toString()} ETH`} />
               </Card>
             </Col>
+          </Row>
           ))}
-        </Row>
 
         <Modal
           title="Add New Item"
@@ -304,6 +309,10 @@ function App() {
             initialValues={formData}
             onFinish={handleEditModalFinish}
           >
+            <Form.Item hidden={true} name="itemId" label="Item id">
+              <Input hidden={true} placeholder="Item id" />
+            </Form.Item>
+
             <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Please enter the title' }]}>
               <Input placeholder="Item title" />
             </Form.Item>
@@ -347,7 +356,7 @@ function App() {
                   cover={<img alt="example" src={item.image} />}
                 >
                   <Meta title={item.title} description={item.description} />
-                  <Meta title={`${ethers.utils.formatEther(ethers.BigNumber.from(item.price))} ETH`} />
+                  <Meta title={`${item.price.toString()} ETH`} />
                 </Card>
               </Col>
             ))}
