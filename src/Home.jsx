@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined } from '@ant-design/icons';
+import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
-import { Menu, Row, Col, Form, Input, Button, Modal, message, Card } from 'antd';
+import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Popconfirm } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
 import { ethers } from "ethers";
@@ -50,6 +50,10 @@ function App() {
     price: "",
     itemId: "",
   });
+  const [isEditButtonLoading, setIsEditButtonLoading] = useState(false);
+  const [isAddButtonLoading, setIsAddButtonLoading] = useState(false);
+  const [deleteButtonLoading, setDeleteButtonLoading] = useState(false);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -86,7 +90,7 @@ function App() {
     }
 
     const { title, description, price, image } = values;
-    
+    setIsAddButtonLoading(true);
     try {
       await requestAccount();
       const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -107,6 +111,7 @@ function App() {
       console.error('Error adding item:', error);
       message.error('Failed to add item');       
     }
+    setIsAddButtonLoading(false);
   };
 
   const handleEditModalFinish = async (values) => {
@@ -114,9 +119,8 @@ function App() {
         message.error('Wallet not connected');
         return;
     }
-    console.log(values)
+    setIsEditButtonLoading(true);
     const { title, description, price, image, itemId } = values;
-    console.log(price);
     try {
         await requestAccount();
         const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -146,6 +150,7 @@ function App() {
         console.error('Error editing item:', error);
         message.error('Failed to edit item ' + error);
     }
+    setIsEditButtonLoading(false);
   }
 
   const handleModalOpen = () => {
@@ -211,6 +216,42 @@ function App() {
     setIsEditModalVisible(true);
   };
 
+  const confirmDeleteItemModal = async (values) => {
+    if (!contract) {
+        message.error('Wallet not connected');
+        return;
+    }
+    const { itemId } = values;
+    console.log(Number(itemId.toString()));
+    setOpenDeleteModal(true);
+    try {
+        await requestAccount();
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const itemContract = new ethers.Contract(
+          ITEM_CONTRACT_ADDRESS,
+          Item.abi,
+          signer
+        );
+        const transaction = await itemContract.deleteItem(
+            Number(itemId.toString())
+        );
+    
+        await transaction.wait();
+        message.success('Item deleted.');
+        setOpenDeleteModal(false);
+        await retrieveUsersItems(); // Refresh items list
+      } catch (error) {
+        setOpenDeleteModal(false);
+        console.error('Error deleting item:', error);
+        message.error('Failed to delete item ' + error);
+    }
+  }
+
+  const cancelPopConfirm = () => {
+
+  }
+
   return (
     <>
       <Row>
@@ -239,28 +280,30 @@ function App() {
           </Col>
         </ Row>
 
+        <Row>
           {userItems.map((item, index) => (
-          <Row>
+            <Col span={6} key={index}>
+                  <Card
+                    hoverable
+                    style={{
+                      width: 240,
+                    }}
+                    actions={[
+                      <EditOutlined key="edit" onClick={() => openEditModal(item)} />,
+                      <DeleteOutlined key="delete" style={{ color: '#eb2f96' }} onClick={() => setOpenDeleteModal(item)}  />,
+                    ]}
+                    cover={<img alt="example" src={item.image} />}
+                  >
+                    <Modal title="Delete" open={openDeleteModal} onOk={() => confirmDeleteItemModal(item)} onCancel={() => setOpenDeleteModal(false)}>
+                    Are you sure you want to delete this item?
+                    </Modal>
 
-            <Col span={8} key={index}>
-              <Card
-                hoverable
-                style={{
-                  width: 240,
-                }}
-                actions={[
-                  <SettingOutlined key="setting" onClick={() => openEditModal(item)} />,
-                  <EditOutlined key="edit" />,
-                  <EllipsisOutlined key="ellipsis" />,
-                ]}
-                cover={<img alt="example" src={item.image} />}
-              >
-                <Meta title={item.title} description={item.description} />
-                <Meta title={`${item.price.toString()} ETH`} />
-              </Card>
+                    <Meta title={item.title} description={item.description} />
+                    <Meta title={`${item.price.toString()} ETH`} />
+                  </Card>
             </Col>
-          </Row>
           ))}
+        </Row>
 
         <Modal
           title="Add New Item"
@@ -290,7 +333,7 @@ function App() {
             </Form.Item>
 
             <Form.Item>
-              <Button type="primary" htmlType="submit">
+              <Button type="primary" htmlType="submit" loading={isAddButtonLoading}>
                 Add Item
               </Button>
             </Form.Item>
@@ -330,7 +373,7 @@ function App() {
             </Form.Item>
 
             <Form.Item>
-              <Button type="primary" htmlType="submit">
+              <Button type="primary" htmlType="submit" loading={isEditButtonLoading}>
                 Save edited item
               </Button>
             </Form.Item>
