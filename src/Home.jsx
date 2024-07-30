@@ -54,6 +54,7 @@ function App() {
   const [isAddButtonLoading, setIsAddButtonLoading] = useState(false);
   const [deleteButtonLoading, setDeleteButtonLoading] = useState(false);
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [isConfirmDeleteButtonLoading, setIsConfirmDeleteButtonLoading] = useState(false);
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -222,8 +223,9 @@ function App() {
         return;
     }
     const { itemId } = values;
-    console.log(Number(itemId.toString()));
+
     setOpenDeleteModal(true);
+    setIsConfirmDeleteButtonLoading(true);
     try {
         await requestAccount();
         const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -242,14 +244,14 @@ function App() {
         setOpenDeleteModal(false);
         await retrieveUsersItems(); // Refresh items list
       } catch (error) {
+        if(error.code === 'ACTION_REJECTED') {
+          message.error('Action rejected by user')
+        } else {
+          message.error('Failed to delete item ' + error);
+        }
         setOpenDeleteModal(false);
-        console.error('Error deleting item:', error);
-        message.error('Failed to delete item ' + error);
     }
-  }
-
-  const cancelPopConfirm = () => {
-
+    setIsConfirmDeleteButtonLoading(false);
   }
 
   return (
@@ -273,7 +275,7 @@ function App() {
               type="primary" 
               icon={<PlusOutlined />} 
               style={{ margin: '16px' }} 
-              onClick={handleModalOpen}
+              onClick={() => setIsModalVisible(true)}
             >
               Add Item
             </Button>
@@ -294,7 +296,17 @@ function App() {
                     ]}
                     cover={<img alt="example" src={item.image} />}
                   >
-                    <Modal title="Delete" open={openDeleteModal} onOk={() => confirmDeleteItemModal(item)} onCancel={() => setOpenDeleteModal(false)}>
+                    <Modal 
+                    title="Delete" 
+                    open={openDeleteModal} 
+                    footer={[
+                      <Button key="back" onClick={() => setOpenDeleteModal(false)}>
+                        Cancel
+                      </Button>,
+                      <Button key="submit" type="primary" loading={isConfirmDeleteButtonLoading} onClick={() => confirmDeleteItemModal(item)}>
+                        OK
+                      </Button>,
+                    ]}>
                     Are you sure you want to delete this item?
                     </Modal>
 

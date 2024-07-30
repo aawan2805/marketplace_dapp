@@ -77,16 +77,29 @@ contract Item {
     }
 
     function deleteItem(uint _itemId) external {
-        require(_itemId < items[msg.sender].length, "Item does not exist");
-        ItemStruct storage item = items[msg.sender][_itemId];
-        require(!item.hasBuyer, "Item already sold");
+        ItemStruct[] storage userItems = items[msg.sender];
+        bool itemFound = false;
+        uint itemIndex;
 
-        uint lastIndex = items[msg.sender].length - 1;
-        if (_itemId != lastIndex) {
-            items[msg.sender][_itemId] = items[msg.sender][lastIndex];
-            items[msg.sender][_itemId].itemId = _itemId;
+        // Find the item and ensure it hasn't been sold
+        for (uint i = 0; i < userItems.length; i++) {
+            if (userItems[i].itemId == _itemId) {
+                require(!userItems[i].hasBuyer, "Item already sold");
+                itemFound = true;
+                itemIndex = i;
+                break;
+            }
         }
-        items[msg.sender].pop();
+
+        require(itemFound, "Item does not exist");
+
+        // Swap the item to delete with the last item and remove the last item
+        uint lastIndex = userItems.length - 1;
+        if (itemIndex != lastIndex) {
+            userItems[itemIndex] = userItems[lastIndex];
+            userItems[itemIndex].itemId = _itemId;
+        }
+        userItems.pop();
     }
 
     function retrieveUserItems() external view returns (ItemStruct[] memory) {
