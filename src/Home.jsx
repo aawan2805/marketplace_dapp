@@ -55,6 +55,7 @@ function App() {
   const [deleteButtonLoading, setDeleteButtonLoading] = useState(false);
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [isConfirmDeleteButtonLoading, setIsConfirmDeleteButtonLoading] = useState(false);
+  const [isPurchaseButtonDisabled, setIsPurchaseButtonDisabled] = useState(false);
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -229,9 +230,15 @@ function App() {
   }
 
   const purchaseItem = async (item) => {
+    if (!contract) {
+      message.error('Wallet not connected');
+      return;
+    }
+    setIsPurchaseButtonDisabled(true)
     const { itemId } = item;
     const id = Number(itemId.toString())
-    console.log(id)
+    console.log(item)
+    setIsPurchaseButtonDisabled(false)
 
   }
 
@@ -385,7 +392,7 @@ function App() {
                     width: 240,
                   }}
                   actions={[
-                    <ShoppingCartOutlined onClick={() => purchaseItem(item)}/>,
+                    <Button type="primary" loading={isPurchaseButtonDisabled} icon={<ShoppingCartOutlined />} onClick={() => purchaseItem(item)} />,
                   ]}
                   cover={<img alt="example" src={item.image} />}
                 >

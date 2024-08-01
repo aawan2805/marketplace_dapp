@@ -14,18 +14,17 @@ contract Item {
         address buyer;
         bool hasBuyer;
         Escrow escrow;
+        address seller;
     }
 
     mapping(address => ItemStruct[]) private items;
     uint public itemsCount;
     address[] private sellers;
+    address public escrowContractAddress;
 
-    // Escrow Contract instance
-    // Escrow public escrowContract;
-
-    // constructor() {
-    //     escrowContract = new Escrow(address(this));
-    // }
+    constructor(address _escrowContractAddress) {
+        escrowContractAddress = _escrowContractAddress;
+    }
 
     function addItem(
         string memory _title,
@@ -47,7 +46,8 @@ contract Item {
             block.timestamp,
             address(0),
             false,
-            Escrow(address(0))
+            Escrow(address(0)),
+            msg.sender
         ));
     }
 
@@ -58,7 +58,6 @@ contract Item {
         uint _price,
         string memory _image
     ) external {
-        // Check if the item belongs to the msg.sender
         require(_itemId > 0 && _itemId <= itemsCount, "Invalid item ID");
         ItemStruct[] storage userItems = items[msg.sender];
         bool itemFound = false;
@@ -81,7 +80,6 @@ contract Item {
         bool itemFound = false;
         uint itemIndex;
 
-        // Find the item and ensure it hasn't been sold
         for (uint i = 0; i < userItems.length; i++) {
             if (userItems[i].itemId == _itemId) {
                 require(!userItems[i].hasBuyer, "Item already sold");
@@ -93,7 +91,6 @@ contract Item {
 
         require(itemFound, "Item does not exist");
 
-        // Swap the item to delete with the last item and remove the last item
         uint lastIndex = userItems.length - 1;
         if (itemIndex != lastIndex) {
             userItems[itemIndex] = userItems[lastIndex];
@@ -110,22 +107,19 @@ contract Item {
         uint totalItems = 0;
         uint currentIndex = 0;
 
-        // Calculate total items excluding the user's items
         for (uint s = 0; s < sellers.length; s++) {
             if (sellers[s] != msg.sender) {
                 totalItems += items[sellers[s]].length;
             }
         }
 
-        // Create an array to hold all items
         ItemStruct[] memory allItems = new ItemStruct[](totalItems);
 
-        // Populate the array with items not created by the user
         for (uint s = 0; s < sellers.length; s++) {
             if (sellers[s] != msg.sender) {
                 ItemStruct[] storage sellerItems = items[sellers[s]];
                 for (uint i = 0; i < sellerItems.length; i++) {
-                    if(!sellerItems[i].hasBuyer){
+                    if (!sellerItems[i].hasBuyer) {
                         allItems[currentIndex] = sellerItems[i];
                         currentIndex++;
                     }
@@ -139,5 +133,33 @@ contract Item {
         return allItems;
     }
 
-}
+    function purchaseItem(uint _itemId, address _seller) external payable {
+        require(_itemId > 0 && _itemId <= itemsCount, "Invalid item ID");
+        ItemStruct[] storage sellerItems = items[_seller];
+        bool itemFound = false;
+        uint itemIndex;
+        for (uint i = 0; i < sellerItems.length; i++) {
+            if (sellerItems[i].itemId == _itemId) {
+                itemFound = true;
+                itemIndex = i;
+                break;
+            }
+        }
+        require(itemFound, "Item not found");
+        ItemStruct storage item = sellerItems[itemIndex];
+        require(!item.hasBuyer, "Item already sold");
+        require(msg.value == item.price, "Incorrect value sent");
 
+        // Create an escrow contract
+        Escrow escrow = Escrow(escrowContractAddress);
+        escrow.createEscrow(msg.sender, _seller, _itemId, item.price);
+
+        // Update item details
+        item.buyer = msg.sender;
+        item.hasBuyer = true;
+        item.escrow = escrow;
+
+        // Transfer the payment to the escrow contract
+        payable(address(escrow)).transfer(msg.value);
+    }
+}
