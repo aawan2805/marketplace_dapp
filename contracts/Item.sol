@@ -125,8 +125,10 @@ contract Item {
             if (sellers[s] != msg.sender) {
                 ItemStruct[] storage sellerItems = items[sellers[s]];
                 for (uint i = 0; i < sellerItems.length; i++) {
-                    allItems[currentIndex] = sellerItems[i];
-                    currentIndex++;
+                    if(!sellerItems[i].hasBuyer){
+                        allItems[currentIndex] = sellerItems[i];
+                        currentIndex++;
+                    }
                 }
             }
         }

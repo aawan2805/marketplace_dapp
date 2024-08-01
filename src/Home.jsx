@@ -87,22 +87,13 @@ function App() {
   const handleFinish = async (values) => {
     if (!contract) {
       message.error('Wallet not connected');
-      await requestAccount();
     }
 
     const { title, description, price, image } = values;
     setIsAddButtonLoading(true);
     try {
       await requestAccount();
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const itemContract = new ethers.Contract(
-        ITEM_CONTRACT_ADDRESS,
-        Item.abi,
-        signer
-      );
-
-      const transaction = await itemContract.addItem(title, description, Number(price), image);
+      const transaction = await contract.addItem(title, description, Number(price), image);
       await transaction.wait();
 
       message.success('Item added successfully');
@@ -124,24 +115,14 @@ function App() {
     const { title, description, price, image, itemId } = values;
     try {
         await requestAccount();
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const itemContract = new ethers.Contract(
-          ITEM_CONTRACT_ADDRESS,
-          Item.abi,
-          signer
-        );
-        const transaction = await itemContract.editItem(
+        const transaction = await contract.editItem(
             Number(itemId.toString()),
             title,
             description,
             Number(price.toString()),
             image
         );
-        console.log("OK2")
-    
-        await transaction.wait();
-        console.log("OK3")
+            await transaction.wait();
 
         message.success('Item edited successfully');
         editForm.resetFields();
@@ -228,14 +209,7 @@ function App() {
     setIsConfirmDeleteButtonLoading(true);
     try {
         await requestAccount();
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const itemContract = new ethers.Contract(
-          ITEM_CONTRACT_ADDRESS,
-          Item.abi,
-          signer
-        );
-        const transaction = await itemContract.deleteItem(
+        const transaction = await contract.deleteItem(
             Number(itemId.toString())
         );
     
@@ -252,6 +226,13 @@ function App() {
         setOpenDeleteModal(false);
     }
     setIsConfirmDeleteButtonLoading(false);
+  }
+
+  const purchaseItem = async (item) => {
+    const { itemId } = item;
+    const id = Number(itemId.toString())
+    console.log(id)
+
   }
 
   return (
@@ -404,9 +385,7 @@ function App() {
                     width: 240,
                   }}
                   actions={[
-                    <SettingOutlined key="setting" />,
-                    <EditOutlined key="edit" />,
-                    <EllipsisOutlined key="ellipsis" />,
+                    <ShoppingCartOutlined onClick={() => purchaseItem(item)}/>,
                   ]}
                   cover={<img alt="example" src={item.image} />}
                 >
