@@ -37,6 +37,7 @@ function App() {
   const navigate = useNavigate();
   const [current, setCurrent] = useState('myItems');
   const [contract, setContract] = useState(null);
+  const [account, setAccount] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [form] = Form.useForm();
@@ -67,10 +68,10 @@ function App() {
         const provider = new ethers.providers.Web3Provider(window.ethereum);
 
         try {
-          await provider.send("eth_requestAccounts", []);
+          const acc = await provider.send("eth_requestAccounts", []);
+          setAccount(acc[0]);
 
           const signer = provider.getSigner();
-
           const itemContract = new ethers.Contract(ITEM_CONTRACT_ADDRESS, Item.abi, signer);
           setContract(itemContract);
         } catch (error) {
@@ -234,10 +235,13 @@ function App() {
       message.error('Wallet not connected');
       return;
     }
+
     setIsPurchaseButtonDisabled(true)
     const { itemId } = item;
     const id = Number(itemId.toString())
-    console.log(item)
+    console.log(id, item.seller)
+    const transaction = await contract.purchaseItem(id, item.seller);
+
     setIsPurchaseButtonDisabled(false)
 
   }

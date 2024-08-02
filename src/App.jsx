@@ -21,6 +21,7 @@ function App() {
             // Request connection if not connected
             const newAccounts = await window.ethereum.request({ method: "eth_requestAccounts" });
             setAccount(newAccounts[0]);
+            navigate("/home")
           }
           // navigate('/home')
         } catch (error) {

@@ -20,11 +20,6 @@ contract Item {
     mapping(address => ItemStruct[]) private items;
     uint public itemsCount;
     address[] private sellers;
-    address public escrowContractAddress;
-
-    constructor(address _escrowContractAddress) {
-        escrowContractAddress = _escrowContractAddress;
-    }
 
     function addItem(
         string memory _title,
@@ -134,32 +129,39 @@ contract Item {
     }
 
     function purchaseItem(uint _itemId, address _seller) external payable {
+        // Ensure the item exists
         require(_itemId > 0 && _itemId <= itemsCount, "Invalid item ID");
-        ItemStruct[] storage sellerItems = items[_seller];
+
+        // Retrieve the seller's items
+        ItemStruct[] storage userItems = items[_seller];
         bool itemFound = false;
         uint itemIndex;
-        for (uint i = 0; i < sellerItems.length; i++) {
-            if (sellerItems[i].itemId == _itemId) {
+
+        // Find the item in the seller's list
+        for (uint i = 0; i < userItems.length; i++) {
+            if (userItems[i].itemId == _itemId) {
                 itemFound = true;
                 itemIndex = i;
                 break;
             }
         }
+
+        // Ensure the item is found and has no buyer yet
         require(itemFound, "Item not found");
-        ItemStruct storage item = sellerItems[itemIndex];
-        require(!item.hasBuyer, "Item already sold");
-        require(msg.value == item.price, "Incorrect value sent");
+        require(!userItems[itemIndex].hasBuyer, "Item already sold");
 
-        // Create an escrow contract
-        Escrow escrow = Escrow(escrowContractAddress);
-        escrow.createEscrow(msg.sender, _seller, _itemId, item.price);
+        // Ensure the correct amount of ether is sent
+        require(msg.value == userItems[itemIndex].price, "Incorrect amount of ether sent");
 
-        // Update item details
-        item.buyer = msg.sender;
-        item.hasBuyer = true;
-        item.escrow = escrow;
+        // Create a new Escrow contract instance
+        Escrow escrow = (new Escrow){value: msg.value}(msg.sender, payable(_seller));
 
-        // Transfer the payment to the escrow contract
-        payable(address(escrow)).transfer(msg.value);
+        // Update the item details
+        userItems[itemIndex].buyer = msg.sender;
+        userItems[itemIndex].hasBuyer = true;
+        userItems[itemIndex].escrow = escrow;
+
+        console.log("Item purchased: %s by %s", userItems[itemIndex].title, msg.sender);
     }
+
 }

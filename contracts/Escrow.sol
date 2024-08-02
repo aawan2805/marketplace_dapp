@@ -1,41 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
-import "./Item.sol";
 
 contract Escrow {
-    Item public itemContract;
-
-    struct EscrowStruct {
-        address buyer;
-        address seller;
-        uint itemId;
-        uint price;
-        bool isCompleted;
+    enum State { AWAITING_PAYMENT, AWAITING_DELIVERY, COMPLETE }
+    
+    State public currState;
+    
+    address public buyer;
+    address payable public seller;
+    
+    modifier onlyBuyer() {
+        require(msg.sender == buyer, "Only buyer can call this method");
+        _;
     }
-
-    mapping(uint => EscrowStruct) public escrows;
-    uint public escrowCount;
-
-    function createEscrow(address _buyer, address _seller, uint _itemId, uint _price) external returns (address) {
-        escrowCount++;
-        escrows[escrowCount] = EscrowStruct(_buyer, _seller, _itemId, _price, false);
-        return address(this);
+    
+    constructor(address _buyer, address payable _seller) payable {
+        buyer = _buyer;
+        seller = _seller;
+        currState = State.AWAITING_PAYMENT;
     }
-
-    function confirmDelivery(uint _escrowId) external {
-        require(escrows[_escrowId].buyer == msg.sender, "Only buyer can confirm");
-        require(!escrows[_escrowId].isCompleted, "Escrow already completed");
-
-        escrows[_escrowId].isCompleted = true;
-        payable(escrows[_escrowId].seller).transfer(escrows[_escrowId].price);
+    
+    function deposit() external payable onlyBuyer {
+        require(currState == State.AWAITING_PAYMENT, "Already paid");
+        currState = State.AWAITING_DELIVERY;
     }
-
-    function refundBuyer(uint _escrowId) external {
-        // require(msg.sender == itemContract.buyer, "Only buyer can refund");
-        require(!escrows[_escrowId].isCompleted, "Escrow already completed");
-
-        escrows[_escrowId].isCompleted = true;
-        payable(escrows[_escrowId].buyer).transfer(escrows[_escrowId].price);
+    
+    function confirmDelivery() external onlyBuyer {
+        require(currState == State.AWAITING_DELIVERY, "Cannot confirm delivery");
+        seller.transfer(address(this).balance);
+        currState = State.COMPLETE;
     }
 }
-
