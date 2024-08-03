@@ -177,6 +177,10 @@ function App() {
       }
     }
   };
+
+  const myPurchases = async () => {
+    
+  }
   
   const onClick = async (e) => {
     setCurrent(e.key);
@@ -184,6 +188,8 @@ function App() {
       await retrieveUsersItems();
     } else if (e.key === 'browseItems') {
       await browseAllItems();
+    } else if (e.key === 'myPurchases') {
+      await myPurchases();
     }
   };
 
@@ -230,21 +236,51 @@ function App() {
     setIsConfirmDeleteButtonLoading(false);
   }
 
+  const checkBalance = async (address) => {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const balance = await provider.getBalance(address);
+    console.log(`Balance of ${address}: ${ethers.utils.formatEther(balance)}`);
+  };
+  
   const purchaseItem = async (item) => {
     if (!contract) {
       message.error('Wallet not connected');
       return;
     }
-
-    setIsPurchaseButtonDisabled(true)
-    const { itemId } = item;
-    const id = Number(itemId.toString())
-    console.log(id, item.seller)
-    const transaction = await contract.purchaseItem(id, item.seller);
-
-    setIsPurchaseButtonDisabled(false)
-
-  }
+  
+    setIsPurchaseButtonDisabled(true);
+  
+    const { itemId, price, seller } = item;
+    const id = Number(itemId.toString());
+    const valueInEther = ethers.utils.formatEther(price._hex); // Convert the price from BigNumber to a string in Ether
+    const valueInWei = ethers.utils.parseEther(valueInEther); // Convert the price from Ether to Wei
+  
+    const userAddress = await contract.signer.getAddress();
+    await checkBalance(userAddress); // Check balance before transaction
+  
+    console.log('Item ID:', id);
+    console.log('Seller:', seller);
+    console.log('Price in Ether:', valueInEther);
+    console.log('Price in Wei:', valueInWei.toString());
+  
+    try {
+      const transaction = await contract.purchaseItem(id, seller, {
+        value: valueInWei, // Send the correct amount of Ether in Wei
+        gasLimit: 5000000 // Set an appropriate gas limit
+      });
+      await transaction.wait();
+  
+      message.success('Purchase successful');
+  
+      await checkBalance(userAddress); // Check balance after transaction
+    } catch (error) {
+      console.error('Error purchasing item:', error);
+      message.error('Error purchasing item');
+    } finally {
+      setIsPurchaseButtonDisabled(false);
+    }
+  };
+  
 
   return (
     <>

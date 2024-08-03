@@ -149,9 +149,10 @@ contract Item {
         // Ensure the item is found and has no buyer yet
         require(itemFound, "Item not found");
         require(!userItems[itemIndex].hasBuyer, "Item already sold");
+        require(userItems[itemIndex].seller == _seller, "Owner can not buy the item.");
 
         // Ensure the correct amount of ether is sent
-        require(msg.value == userItems[itemIndex].price, "Incorrect amount of ether sent");
+        require(msg.value == userItems[itemIndex].price, "Incorrect amount of ether sent got");
 
         // Create a new Escrow contract instance
         Escrow escrow = (new Escrow){value: msg.value}(msg.sender, payable(_seller));
@@ -162,6 +163,38 @@ contract Item {
         userItems[itemIndex].escrow = escrow;
 
         console.log("Item purchased: %s by %s", userItems[itemIndex].title, msg.sender);
+    }
+
+
+    function myPurchases() external view returns (ItemStruct[] memory) {
+        uint totalPurchases = 0;
+        uint currentIndex = 0;
+
+        // First count the number of purchases by the caller
+        for (uint s = 0; s < sellers.length; s++) {
+            ItemStruct[] storage sellerItems = items[sellers[s]];
+            for (uint i = 0; i < sellerItems.length; i++) {
+                if (sellerItems[i].buyer == msg.sender) {
+                    totalPurchases++;
+                }
+            }
+        }
+
+        // Create an array with the exact number of purchases
+        ItemStruct[] memory purchases = new ItemStruct[](totalPurchases);
+
+        // Populate the purchases array with the actual purchases
+        for (uint s = 0; s < sellers.length; s++) {
+            ItemStruct[] storage sellerItems = items[sellers[s]];
+            for (uint i = 0; i < sellerItems.length; i++) {
+                if (sellerItems[i].buyer == msg.sender) {
+                    purchases[currentIndex] = sellerItems[i];
+                    currentIndex++;
+                }
+            }
+        }
+
+        return purchases;
     }
 
 }
