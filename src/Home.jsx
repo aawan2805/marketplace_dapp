@@ -57,6 +57,7 @@ function App() {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [isConfirmDeleteButtonLoading, setIsConfirmDeleteButtonLoading] = useState(false);
   const [isPurchaseButtonDisabled, setIsPurchaseButtonDisabled] = useState(false);
+  const [myPurchases, setMyPurchases] = useState([]);
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -178,8 +179,14 @@ function App() {
     }
   };
 
-  const myPurchases = async () => {
-    
+  const retrieveMyPurchases = async () => {
+    try {
+      const purchases = await contract.myPurchases();
+      setMyPurchases(purchases);
+    } catch (error) {
+      console.error('Error fetching purchases:', error);
+      return [];
+    }
   }
   
   const onClick = async (e) => {
@@ -189,7 +196,7 @@ function App() {
     } else if (e.key === 'browseItems') {
       await browseAllItems();
     } else if (e.key === 'myPurchases') {
-      await myPurchases();
+      await retrieveMyPurchases();
     }
   };
 
@@ -425,6 +432,30 @@ function App() {
         <>
           <Row>
             {globalItems.map((item, index) => (
+              <Col span={8} key={index}>
+                <Card
+                  hoverable
+                  style={{
+                    width: 240,
+                  }}
+                  actions={[
+                    <Button type="primary" loading={isPurchaseButtonDisabled} icon={<ShoppingCartOutlined />} onClick={() => purchaseItem(item)} />,
+                  ]}
+                  cover={<img alt="example" src={item.image} />}
+                >
+                  <Meta title={item.title} description={item.description} />
+                  <Meta title={`${item.price.toString()} ETH`} />
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </>
+      }
+      {current === 'myPurchases' && 
+        <>
+          <Row>
+            {myPurchases.length === 0 && <p>No purchases found.</p>}
+            {myPurchases.length > 0 && myPurchases.map((item, index) => (
               <Col span={8} key={index}>
                 <Card
                   hoverable
