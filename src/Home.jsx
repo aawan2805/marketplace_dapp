@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
 import { ethers } from "ethers";
 import Item from "./artifacts/contracts/Item.sol/Item.json";
+import Escrow from "./artifacts/contracts/Escrow.sol/Escrow.json"
 
 const { TextArea } = Input;
 const { Meta } = Card;
@@ -182,10 +183,14 @@ function App() {
   const retrieveMyPurchases = async () => {
     try {
       const purchases = await contract.myPurchases();
-      setMyPurchases(purchases);
-    } catch (error) {
+      const purchasesWithStates = await Promise.all(purchases.map(async (purchase) => {
+        const state = await fetchEscrowState(purchase.escrow);
+        return { ...purchase, escrowState: state };
+      }));
+      setMyPurchases(purchasesWithStates);
+      } catch (error) {
       console.error('Error fetching purchases:', error);
-      return [];
+      message.error("Error fetching purchases " + error)
     }
   }
   
@@ -287,6 +292,25 @@ function App() {
       setIsPurchaseButtonDisabled(false);
     }
   };
+
+  const fetchEscrowState = async (escrowAddress) => {
+    if (!escrowAddress || escrowAddress === ethers.constants.AddressZero) {
+      return null;
+    }
+    const escrowAbi = [
+      "function currState() view returns (uint8)"
+    ];
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const escrowContract = new ethers.Contract(escrowAddress, Escrow.abi, provider);
+    try {
+      const state = await escrowContract.currState();
+      return state;
+    } catch (error) {
+      console.error('Error fetching escrow state:', error);
+      return null;
+    }
+  };
+  
   
 
   return (
@@ -469,7 +493,9 @@ function App() {
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
-                </Card>
+                  <Meta title="PUTA" />
+                  <Meta title={`Escrow State: ${item.escrowState !== null && item.escrowState !== undefined ? item.escrowState : "Loading..."}`} />
+                  </Card>
               </Col>
             ))}
           </Row>
