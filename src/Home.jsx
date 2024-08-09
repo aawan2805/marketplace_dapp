@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined  } from '@ant-design/icons';
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
 import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Popconfirm } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -311,6 +311,20 @@ function App() {
     }
   };
   
+  const getEscrowStateTitle = (escrowState) => {
+    switch (escrowState) {
+      case 0:
+        return <Button icon={<ClockCircleOutlined />} shape='circle' type='primary' title='Awaiting delivery' />;
+      case 1:
+        return <Button type="primary" shape="circle" icon={<CheckOutlined />} title='Confirm delivery' />;
+      case 2:
+        return 'Escrow State: Completed';
+      case 3:
+        return 'Escrow State: Canceled';
+      default:
+        return 'Escrow State: Unknown';
+    }
+  };
   
 
   return (
@@ -487,14 +501,14 @@ function App() {
                     width: 240,
                   }}
                   actions={[
-                    <Button type="primary" loading={isPurchaseButtonDisabled} icon={<ShoppingCartOutlined />} onClick={() => purchaseItem(item)} />,
+                    item.escrowState === 0 ? (<Button danger icon={<ClockCircleOutlined />} shape='circle' type='primary' title='Awaiting delivery' />) : (null),
+                    item.escrowState === 1 ? (<Button type="primary" shape="circle" icon={<CheckOutlined />} title='Confirm delivery' />) : (null),
+                    item.escrowState === 2 ? (null) : (null)
                   ]}
                   cover={<img alt="example" src={item.image} />}
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
-                  <Meta title="PUTA" />
-                  <Meta title={`Escrow State: ${item.escrowState !== null && item.escrowState !== undefined ? item.escrowState : "Loading..."}`} />
                   </Card>
               </Col>
             ))}
