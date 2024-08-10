@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined  } from '@ant-design/icons';
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
-import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Popconfirm } from 'antd';
+import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
 import { ethers } from "ethers";
@@ -59,6 +59,7 @@ function App() {
   const [isConfirmDeleteButtonLoading, setIsConfirmDeleteButtonLoading] = useState(false);
   const [isPurchaseButtonDisabled, setIsPurchaseButtonDisabled] = useState(false);
   const [myPurchases, setMyPurchases] = useState([]);
+  const [isLoadingConfirmDeliveryButton, setIsLoadingConfirmDeliveryButton] = useState(false)
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -185,7 +186,8 @@ function App() {
       const purchases = await contract.myPurchases();
       const purchasesWithStates = await Promise.all(purchases.map(async (purchase) => {
         const state = await fetchEscrowState(purchase.escrow);
-        return { ...purchase, escrowState: state };
+        const buyAt = await fetchEscrowBoughtAt(purchase.escrow)
+        return { ...purchase, escrowState: state, boughtAt: buyAt };
       }));
       setMyPurchases(purchasesWithStates);
       } catch (error) {
@@ -293,6 +295,21 @@ function App() {
     }
   };
 
+  const fetchEscrowBoughtAt = async (escrowAddress) => {
+    if (!escrowAddress || escrowAddress === ethers.constants.AddressZero) {
+      return null;
+    }
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const escrowContract = new ethers.Contract(escrowAddress, Escrow.abi, provider);
+    try {
+      const state = await escrowContract.boughtAt();
+      return state;
+    } catch (error) {
+      console.error('Error fetching escrow state:', error);
+      return null;
+    }
+  }
+
   const fetchEscrowState = async (escrowAddress) => {
     if (!escrowAddress || escrowAddress === ethers.constants.AddressZero) {
       return null;
@@ -310,6 +327,26 @@ function App() {
       return null;
     }
   };
+
+  const confirmDelivery = async (escrowAddress) => {
+    if (!escrowAddress || escrowAddress === ethers.constants.AddressZero) {
+      return null;
+    }
+    setIsLoadingConfirmDeliveryButton(true)
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const escrowContract = new ethers.Contract(escrowAddress, Escrow.abi, signer);
+    try {
+      const transaction = await escrowContract.confirmDelivery();
+      await transaction.wait();
+      message.success("Item delivery confirmed successfully.")
+    } catch (error) {
+      console.error('Error fetching escrow state:', error);
+      message.error('Error fetching escrow state:' + error)
+    }
+    setIsLoadingConfirmDeliveryButton(false)
+
+  }
   
   const getEscrowStateTitle = (escrowState) => {
     switch (escrowState) {
@@ -501,14 +538,16 @@ function App() {
                     width: 240,
                   }}
                   actions={[
-                    item.escrowState === 0 ? (<Button danger icon={<ClockCircleOutlined />} shape='circle' type='primary' title='Awaiting delivery' />) : (null),
-                    item.escrowState === 1 ? (<Button type="primary" shape="circle" icon={<CheckOutlined />} title='Confirm delivery' />) : (null),
+                    item.escrowState === 0 ? (<Button loading={isLoadingConfirmDeliveryButton} type="primary" icon={<CheckOutlined />} onClick={() => confirmDelivery(item.escrow)}> Confirm item delivery </Button>) : (null),
+                    item.escrowState === 1 ? (<Tooltip title={"Item recieved"}><CheckOutlined /></Tooltip>) : (null),
                     item.escrowState === 2 ? (null) : (null)
                   ]}
                   cover={<img alt="example" src={item.image} />}
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
+                  <Meta title={`${new Date(item.boughtAt.toNumber() * 1000)}`} />
+
                   </Card>
               </Col>
             ))}
