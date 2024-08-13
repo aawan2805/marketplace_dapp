@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined  } from '@ant-design/icons';
+import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined  } from '@ant-design/icons';
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
-import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip } from 'antd';
+import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
 import { ethers } from "ethers";
@@ -538,7 +538,24 @@ function App() {
                     width: 240,
                   }}
                   actions={[
-                    item.escrowState === 0 ? (<Button loading={isLoadingConfirmDeliveryButton} type="primary" icon={<CheckOutlined />} onClick={() => confirmDelivery(item.escrow)}> Confirm item delivery </Button>) : (null),
+                    item.escrowState === 0 ? (
+                      <>
+                        <Row>
+                          <Col>
+                            <Button loading={isLoadingConfirmDeliveryButton} type="primary" icon={<CheckOutlined />} onClick={() => confirmDelivery(item.escrow)}> 
+                              Confirm item delivery 
+                            </Button>
+                          </Col>
+                        </Row>
+                        <Row>
+                          <Col>
+                            <Button loading={isLoadingConfirmDeliveryButton} danger icon={<CloseOutlined />} onClick={() => confirmDelivery(item.escrow)}> 
+                              Cancel order's item 
+                            </Button>
+                          </Col>
+                        </Row>
+                      </>
+                    ) : (null),
                     item.escrowState === 1 ? (<Tooltip title={"Item recieved"}><CheckOutlined /></Tooltip>) : (null),
                     item.escrowState === 2 ? (null) : (null)
                   ]}
@@ -546,7 +563,7 @@ function App() {
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
-                  <Meta title={`${new Date(item.boughtAt.toNumber() * 1000)}`} />
+                  <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} />
 
                   </Card>
               </Col>
