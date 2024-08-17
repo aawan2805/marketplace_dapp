@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined  } from '@ant-design/icons';
+import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined, UploadOutlined } from '@ant-design/icons';
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
-import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip, Tag } from 'antd';
+import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip, Tag, Upload } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
 import { ethers } from "ethers";
 import Item from "./artifacts/contracts/Item.sol/Item.json";
 import Escrow from "./artifacts/contracts/Escrow.sol/Escrow.json"
+import axios from 'axios'
 
 const { TextArea } = Input;
 const { Meta } = Card;
@@ -60,6 +61,8 @@ function App() {
   const [isPurchaseButtonDisabled, setIsPurchaseButtonDisabled] = useState(false);
   const [myPurchases, setMyPurchases] = useState([]);
   const [isLoadingConfirmDeliveryButton, setIsLoadingConfirmDeliveryButton] = useState(false)
+  const [file, setFile] = useState("");
+  const [imageName, setImageName] = useState()
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -94,11 +97,18 @@ function App() {
       message.error('Wallet not connected');
     }
 
+    const formData = new FormData()
+    formData.append("image", file)
+    const result = await axios.post('http://localhost:8080/api/images', formData, { headers: {'Content-Type': 'multipart/form-data'}})
+    setImageName(result.data.imageId)
+    console.log(result.data.imageId)
+    console.log("Image uploaded successfully")
+
     const { title, description, price, image } = values;
     setIsAddButtonLoading(true);
     try {
       await requestAccount();
-      const transaction = await contract.addItem(title, description, Number(price), image);
+      const transaction = await contract.addItem(title, description, Number(price), result.data.imageId);
       await transaction.wait();
 
       message.success('Item added successfully');
@@ -347,21 +357,20 @@ function App() {
     setIsLoadingConfirmDeliveryButton(false)
 
   }
-  
-  const getEscrowStateTitle = (escrowState) => {
-    switch (escrowState) {
-      case 0:
-        return <Button icon={<ClockCircleOutlined />} shape='circle' type='primary' title='Awaiting delivery' />;
-      case 1:
-        return <Button type="primary" shape="circle" icon={<CheckOutlined />} title='Confirm delivery' />;
-      case 2:
-        return 'Escrow State: Completed';
-      case 3:
-        return 'Escrow State: Canceled';
-      default:
-        return 'Escrow State: Unknown';
+
+  const fetchImageUrl = async (imageId) => {
+    try {
+      const response = await axios.get(`http://localhost:8080/images/${imageId}`, {
+        responseType: 'blob'// Ensure the response is treated as a binary file
+      });
+      console.log(response.data)
+      return URL.createObjectURL(response.data); // Create a URL for the image blob
+    } catch (error) {
+      console.error('Error fetching image:', error);
+      return null;
     }
   };
+  
   
 
   return (
@@ -404,7 +413,7 @@ function App() {
                       <EditOutlined key="edit" onClick={() => openEditModal(item)} />,
                       <DeleteOutlined key="delete" style={{ color: '#eb2f96' }} onClick={() => setOpenDeleteModal(item)}  />,
                     ]}
-                    cover={<img alt="example" src={item.image} />}
+                    cover={<img alt="example" src={fetchImageUrl(item.image)} />}
                   >
                     <Modal 
                     title="Delete" 
@@ -450,9 +459,12 @@ function App() {
               <Input type="number" placeholder="Item price" />
             </Form.Item>
 
-            <Form.Item name="image" label="Image URL" rules={[{ required: true, message: 'Please enter the image URL' }]}>
-              <Input placeholder="Item image URL" />
-            </Form.Item>
+            <input
+              filename={file} 
+              onChange={e => setFile(e.target.files[0])} 
+              type="file" 
+              accept="image/*"
+            />
 
             <Form.Item>
               <Button type="primary" htmlType="submit" loading={isAddButtonLoading}>
