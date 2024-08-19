@@ -17,6 +17,8 @@ contract Item {
         address seller;
     }
 
+    // WEI (ETH)
+
     mapping(address => ItemStruct[]) private items;
     uint public itemsCount;
     address[] private sellers;
@@ -152,7 +154,7 @@ contract Item {
         require(userItems[itemIndex].seller == _seller, "Owner can not buy the item.");
 
         // Ensure the correct amount of ether is sent
-        require(msg.value == userItems[itemIndex].price, "Incorrect amount of ether sent got");
+        require(msg.value == userItems[itemIndex].price, "Incorrect amount of ether/wei sent.");
 
         // Create a new Escrow contract instance
         Escrow escrow = (new Escrow){value: msg.value}(msg.sender, payable(_seller));

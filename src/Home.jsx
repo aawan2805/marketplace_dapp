@@ -4,6 +4,7 @@ import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/ico
 import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip, Tag, Upload } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
+import { API_URL } from '../utils';
 import { ethers } from "ethers";
 import Item from "./artifacts/contracts/Item.sol/Item.json";
 import Escrow from "./artifacts/contracts/Escrow.sol/Escrow.json"
@@ -99,9 +100,8 @@ function App() {
 
     const formData = new FormData()
     formData.append("image", file)
-    const result = await axios.post('http://localhost:8080/api/images', formData, { headers: {'Content-Type': 'multipart/form-data'}})
+    const result = await axios.post(`${API_URL}/images`, formData, { headers: {'Content-Type': 'multipart/form-data'}})
     setImageName(result.data.imageId)
-    console.log(result.data.imageId)
     console.log("Image uploaded successfully")
 
     const { title, description, price, image } = values;
@@ -126,10 +126,19 @@ function App() {
         message.error('Wallet not connected');
         return;
     }
-    setIsEditButtonLoading(true);
-    const { title, description, price, image, itemId } = values;
+    // setIsEditButtonLoading(true);
+    const { title, description, price, image, itemId, imageUrl } = values;
+    console.log(values)
+    return;
     try {
         await requestAccount();
+
+        // const formData = new FormData()
+        // formData.append("image", file)
+        // const result = await axios.post(`${API_URL}/images`, formData, { headers: {'Content-Type': 'multipart/form-data'}})
+        // setImageName(result.data.imageId)
+        // console.log("Image uploaded successfully")
+
         const transaction = await contract.editItem(
             Number(itemId.toString()),
             title,
@@ -173,7 +182,31 @@ function App() {
     if (contract) {
       try {
         const items = await contract.retrieveUserItems();
-        setUserItems(items);
+        const updatedItems = await Promise.all(
+          items.map(async item => {
+            try {
+              const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
+                responseType: 'blob', // Ensure we treat the response as a binary file
+              });
+  
+              const imageUrl = URL.createObjectURL(response.data);
+  
+              // Add the new image URL key to the item
+              return {
+                ...item,
+                imageUrl, // Add the image URL as a new key
+              };
+            } catch (error) {
+              console.error(`Error fetching image for item ${item.id}:`, error);
+              return {
+                ...item,
+                imageUrl: null, // Handle the case where the image couldn't be fetched
+              };
+            }
+          })
+        );
+        setUserItems(updatedItems);
+        console.log(updatedItems)
       } catch (error) {
         console.error('Error retrieving items:', error);
       }
@@ -184,7 +217,30 @@ function App() {
     if (contract) {
       try {
         const items = await contract.browseItems();
-        setGlobalItems(items);
+        const updatedItems = await Promise.all(
+          items.map(async item => {
+            try {
+              const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
+                responseType: 'blob', // Ensure we treat the response as a binary file
+              });
+  
+              const imageUrl = URL.createObjectURL(response.data);
+  
+              // Add the new image URL key to the item
+              return {
+                ...item,
+                imageUrl, // Add the image URL as a new key
+              };
+            } catch (error) {
+              console.error(`Error fetching image for item ${item.id}:`, error);
+              return {
+                ...item,
+                imageUrl: null, // Handle the case where the image couldn't be fetched
+              };
+            }
+          })
+        );
+        setGlobalItems(updatedItems);
       } catch (error) {
         console.error('Error retrieving items:', error);
       }
@@ -205,7 +261,7 @@ function App() {
       message.error("Error fetching purchases " + error)
     }
   }
-  
+
   const onClick = async (e) => {
     setCurrent(e.key);
     if (e.key === 'myItems') {
@@ -220,10 +276,9 @@ function App() {
   const openEditModal = (item) => {
     console.log(item)
     setFormData({
-        ...formData,
         title: item.title,
         description: item.description,
-        image: item.image,
+        image: item.imageUrl,
         itemId: Number(item.itemId.toString()),
         price: Number(item.price.toString()),
       });
@@ -360,11 +415,13 @@ function App() {
 
   const fetchImageUrl = async (imageId) => {
     try {
-      const response = await axios.get(`http://localhost:8080/images/${imageId}`, {
-        responseType: 'blob'// Ensure the response is treated as a binary file
+      const imageUrl = `http://localhost:8080/api/images/${imageId}`;
+      const response = await axios.get(imageUrl, {
+        responseType: 'blob', // This ensures that the response is treated as a binary file
       });
-      console.log(response.data)
-      return URL.createObjectURL(response.data); // Create a URL for the image blob
+  
+      // Instead of using URL.createObjectURL, just return the URL you constructed
+      return imageUrl;
     } catch (error) {
       console.error('Error fetching image:', error);
       return null;
@@ -413,7 +470,7 @@ function App() {
                       <EditOutlined key="edit" onClick={() => openEditModal(item)} />,
                       <DeleteOutlined key="delete" style={{ color: '#eb2f96' }} onClick={() => setOpenDeleteModal(item)}  />,
                     ]}
-                    cover={<img alt="example" src={fetchImageUrl(item.image)} />}
+                    cover={<img alt="example" src={item.imageUrl} />}
                   >
                     <Modal 
                     title="Delete" 
@@ -459,11 +516,13 @@ function App() {
               <Input type="number" placeholder="Item price" />
             </Form.Item>
 
+            <label htmlFor="image">* Image</label>
             <input
               filename={file} 
               onChange={e => setFile(e.target.files[0])} 
               type="file" 
               accept="image/*"
+              required
             />
 
             <Form.Item>
@@ -502,9 +561,18 @@ function App() {
               <Input type="number" placeholder="Item price" />
             </Form.Item>
 
-            <Form.Item name="image" label="Image URL" rules={[{ required: true, message: 'Please enter the image URL' }]}>
-              <Input placeholder="Item image URL" />
+            <Form.Item  name="currentImage" label="Current image" rules={[{ required: false, message: 'Please enter the image URL' }]}>
+              <img src={formData.image} alt={formData.image} height={150} width={150} />
             </Form.Item>
+
+            <label htmlFor="image">New image</label>
+            <input
+              filename={file} 
+              onChange={e => setFile(e.target.files[0])} 
+              type="file" 
+              accept="image/*"
+              name='image'
+            />
 
             <Form.Item>
               <Button type="primary" htmlType="submit" loading={isEditButtonLoading}>
@@ -528,7 +596,7 @@ function App() {
                   actions={[
                     <Button type="primary" loading={isPurchaseButtonDisabled} icon={<ShoppingCartOutlined />} onClick={() => purchaseItem(item)} />,
                   ]}
-                  cover={<img alt="example" src={item.image} />}
+                  cover={<img alt="example" src={item.imageUrl} />}
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
