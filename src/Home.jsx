@@ -240,7 +240,8 @@ function App() {
             }
           })
         );
-        setGlobalItems(updatedItems);
+        const itemResponse = updatedItems.filter(item => item.itemId.toString() != 0);
+        setGlobalItems(itemResponse);
       } catch (error) {
         console.error('Error retrieving items:', error);
       }
@@ -255,7 +256,30 @@ function App() {
         const buyAt = await fetchEscrowBoughtAt(purchase.escrow)
         return { ...purchase, escrowState: state, boughtAt: buyAt };
       }));
-      setMyPurchases(purchasesWithStates);
+      const updatedPurchasesWithStates = await Promise.all(
+        purchasesWithStates.map(async item => {
+          try {
+            const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
+              responseType: 'blob', // Ensure we treat the response as a binary file
+            });
+
+            const imageUrl = URL.createObjectURL(response.data);
+
+            // Add the new image URL key to the item
+            return {
+              ...item,
+              imageUrl, // Add the image URL as a new key
+            };
+          } catch (error) {
+            console.error(`Error fetching image for item ${item.id}:`, error);
+            return {
+              ...item,
+              imageUrl: null, // Handle the case where the image couldn't be fetched
+            };
+          }
+        })
+      );
+      setMyPurchases(updatedPurchasesWithStates);
       } catch (error) {
       console.error('Error fetching purchases:', error);
       message.error("Error fetching purchases " + error)
@@ -460,7 +484,7 @@ function App() {
 
         <Row>
           {userItems.map((item, index) => (
-            <Col span={6} key={index}>
+            <Col span={12} key={index}>
                   <Card
                     hoverable
                     style={{
@@ -639,7 +663,7 @@ function App() {
                     item.escrowState === 1 ? (<Tooltip title={"Item recieved"}><CheckOutlined /></Tooltip>) : (null),
                     item.escrowState === 2 ? (null) : (null)
                   ]}
-                  cover={<img alt="example" src={item.image} />}
+                  cover={<img alt="example" src={item.imageUrl} />}
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
