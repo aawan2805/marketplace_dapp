@@ -199,4 +199,54 @@ contract Item {
         return purchases;
     }
 
+    function mySales() external view returns (ItemStruct[] memory) {
+        uint totalSales = 0;
+        uint currentIndex = 0;
+
+        // First count the number of sales by the caller
+        ItemStruct[] storage userItems = items[msg.sender];
+        for (uint i = 0; i < userItems.length; i++) {
+            if (userItems[i].hasBuyer) {
+                totalSales++;
+            }
+        }
+
+        // Create an array with the exact number of sales
+        ItemStruct[] memory sales = new ItemStruct[](totalSales);
+
+        // Populate the sales array with the actual sales
+        for (uint i = 0; i < userItems.length; i++) {
+            if (userItems[i].hasBuyer) {
+                sales[currentIndex] = userItems[i];
+                currentIndex++;
+            }
+        }
+
+        return sales;
+    }
+
+    function shipItem(uint _itemId, string memory tracking) external {
+        ItemStruct[] storage userItems = items[msg.sender];
+        bool itemFound = false;
+        uint itemIndex;
+
+        // Find the item in the seller's list
+        for (uint i = 0; i < userItems.length; i++) {
+            if (userItems[i].itemId == _itemId) {
+                itemFound = true;
+                itemIndex = i;
+                break;
+            }
+        }
+
+        require(itemFound, "Item not found");
+        require(userItems[itemIndex].hasBuyer, "Item has not been purchased");
+        require(msg.sender == userItems[itemIndex].seller, "Only seller can ship this item");
+
+        // Call the ship() method from the Escrow contract associated with this item
+        userItems[itemIndex].escrow.ship(tracking);
+        console.log("Item shipped: %s by %s", userItems[itemIndex].title, msg.sender);
+    }
+
+
 }

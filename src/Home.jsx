@@ -30,9 +30,14 @@ const menuItems = [
         icon: <ShoppingCartOutlined />,
     },
     {
-        label: 'Disconnect',
-        key: 'disconnect',
-        icon: <LogoutOutlined />,
+      label: 'My Sales',
+      key: 'mySales',
+      icon: <ShoppingCartOutlined />,
+    },
+    {
+      label: 'Disconnect',
+      key: 'disconnect',
+      icon: <LogoutOutlined />,
     }
 ];
 
@@ -47,6 +52,7 @@ function App() {
   const [editForm] = Form.useForm();
   const [userItems, setUserItems] = useState([]);
   const [globalItems, setGlobalItems] = useState([]);
+  const [mySales, setMySales] = useState([]);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -64,6 +70,7 @@ function App() {
   const [isLoadingConfirmDeliveryButton, setIsLoadingConfirmDeliveryButton] = useState(false)
   const [file, setFile] = useState("");
   const [imageName, setImageName] = useState()
+  const [inputTrackingNumber, setInputTrackingNumber] = useState("");
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -128,8 +135,7 @@ function App() {
     }
     // setIsEditButtonLoading(true);
     const { title, description, price, image, itemId, imageUrl } = values;
-    console.log(values)
-    return;
+
     try {
         await requestAccount();
 
@@ -248,6 +254,57 @@ function App() {
     }
   };
 
+  const showMySales = async () => {
+    if (contract) {
+      try {
+        const items = await contract.mySales();
+        const updatedItems = await Promise.all(
+          items.map(async item => {
+            try {
+              const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
+                responseType: 'blob', // Ensure we treat the response as a binary file
+              });
+              const imageUrl = URL.createObjectURL(response.data);
+              const estateStatus = await fetchMySaleEscorwState(item.escrow);
+              // Add the new image URL key to the item
+              return {
+                ...item,
+                imageUrl, // Add the image URL as a new key
+                estateStatus,
+              };
+            } catch (error) {
+              console.error(`Error fetching image for item ${item.id}:`, error);
+              return {
+                ...item,
+                imageUrl: null, // Handle the case where the image couldn't be fetched
+                estateStatus: null,
+              };
+            }
+          })
+        );
+        console.log(updatedItems);
+        setMySales(updatedItems);
+      } catch (error) {
+        console.error('Error retrieving items:', error);
+      }
+    }
+  };
+
+  const fetchMySaleEscorwState = async (escrowAddress) => {
+    if (!escrowAddress || escrowAddress === ethers.constants.AddressZero) {
+      return null;
+    }
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const escrowContract = new ethers.Contract(escrowAddress, Escrow.abi, provider);
+    try {
+      const state = await escrowContract.getState();
+      return state;
+    } catch (error) {
+      console.error('Error fetching escrow state:', error);
+      return null;
+    }
+  };
+
   const retrieveMyPurchases = async () => {
     try {
       const purchases = await contract.myPurchases();
@@ -258,6 +315,7 @@ function App() {
       }));
       const updatedPurchasesWithStates = await Promise.all(
         purchasesWithStates.map(async item => {
+          console.log(item)
           try {
             const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
               responseType: 'blob', // Ensure we treat the response as a binary file
@@ -294,6 +352,8 @@ function App() {
       await browseAllItems();
     } else if (e.key === 'myPurchases') {
       await retrieveMyPurchases();
+    } else if (e.key === 'mySales') {
+      await showMySales();
     }
   };
 
@@ -451,6 +511,28 @@ function App() {
       return null;
     }
   };
+
+  const submitShip = async (values) => {
+    const {escrow, itemId} = values;
+    if (!escrow || escrow === ethers.constants.AddressZero) {
+      return null;
+    }
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+    try {
+      const transaction = await escrowContract.ship(
+        inputTrackingNumber
+    );
+    await transaction.wait();
+      message.success("Item tracking number updated successfully.")
+    } catch (error) {
+      console.error('Error fetching escrow state:', error);
+      message.error('Error fetching escrow state:' + error)
+    }
+
+    setInputTrackingNumber("");
+  }
   
   
 
@@ -642,7 +724,7 @@ function App() {
                     width: 240,
                   }}
                   actions={[
-                    item.escrowState === 0 ? (
+                    item.escrowState === 1 ? (
                       <>
                         <Row>
                           <Col>
@@ -660,7 +742,7 @@ function App() {
                         </Row>
                       </>
                     ) : (null),
-                    item.escrowState === 1 ? (<Tooltip title={"Item recieved"}><CheckOutlined /></Tooltip>) : (null),
+                    item.escrowState === 0 ? (<Tooltip title={"Waiting delivery."}><ClockCircleOutlined /></Tooltip>) : (null),
                     item.escrowState === 2 ? (null) : (null)
                   ]}
                   cover={<img alt="example" src={item.imageUrl} />}
@@ -670,6 +752,44 @@ function App() {
                   <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} />
 
                   </Card>
+              </Col>
+            ))}
+          </Row>
+        </>
+      }
+      {current === 'mySales' &&
+        <>
+          <Row>
+            {mySales.map((item, index) => (
+              <Col span={8} key={index}>
+                <Card
+                  hoverable
+                  style={{
+                    width: 240,
+                  }}
+                  actions={[
+               
+                  ]}
+                  cover={<img alt="example" src={item.imageUrl} />}
+                >
+                  <Meta title={item.title} description={item.description} />
+                  <Meta title={`${item.price.toString()} ETH`} />
+                  <Card type="" title="">
+                    {item.estateStatus[0] === 0 && (
+                      <>
+                        <Row>
+                          <Col>
+                            <Input placeholder="Tracking number" size='' onChange={(e) => setInputTrackingNumber(e.target.value)}/>
+                          </Col>
+                        </Row>
+                        <Row>
+                        <Button onClick={() => submitShip(item)} title='Submit' type='primary'>Submit</Button>
+
+                        </Row>
+                      </>
+                    )}
+                  </Card>
+                </Card>
               </Col>
             ))}
           </Row>

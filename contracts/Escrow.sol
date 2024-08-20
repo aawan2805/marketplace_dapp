@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 contract Escrow {
     enum State { 
         AWAITING_DELIVERY, 
-        DELIVERED,
+        SHIPPED_OUT_BY_SELLER,
+        DELIVERY_CONFIRMED_BY_BUYER,
 
         DISPUTE_OPENED, 
-        SUBMIT_DISPUTE_PROOF, 
         DISPUTE_CLOSED 
     }
     
@@ -19,6 +19,8 @@ contract Escrow {
     string[] public disputeHistory;
     bool private sellerSubmittedProof;
     string private sellerProof;
+    string private buyerProof;
+    string private trackingNumber;
 
 
     modifier onlyBuyer() {
@@ -45,23 +47,40 @@ contract Escrow {
         boughtAt = block.timestamp;
     }
     
-    function confirmDelivery() external onlyBuyer {
-        require(currState == State.AWAITING_DELIVERY, "Cannot confirm delivery");
-        seller.transfer(address(this).balance);
-        currState = State.DELIVERED;
+    function ship(string memory tracking) external onlySeller {
+        require(currState == State.AWAITING_DELIVERY, "Cannot ship. Incorrect status.");
+        currState = State.SHIPPED_OUT_BY_SELLER;
+        trackingNumber = tracking;
+        disputeHistory.push("Item sent by the seller.");
     }
 
-    function openSellerDispute() external onlySeller {
-        require(currState == State.AWAITING_DELIVERY, "Cannot open dispute at this stage");
+    function confirmDelivery() external onlyBuyer {
+        require(currState == State.SHIPPED_OUT_BY_SELLER, "Cannot confirm delivery");
+        seller.transfer(address(this).balance);
+        currState = State.DELIVERY_CONFIRMED_BY_BUYER;
+        disputeHistory.push("Item recieved by the buyer.");
+    }
+
+    // Disputes
+    function openBuyerDispute(string memory proof) external onlyBuyer {
+        require(currState == State.SHIPPED_OUT_BY_SELLER, "Cannot open dispute at this stage");
         currState = State.DISPUTE_OPENED;
-        disputeHistory.push("Dispute opened by seller.");
+        buyerProof = proof;
+        disputeHistory.push("Dispute opened by buyer.");
     }
 
     function submitSellerProof(string memory proof) external onlySeller {
-        require(currState != State.DELIVERED, "Cannot open dispute at this stage");
-        require(currState != State.AWAITING_DELIVERY, "Cannot open dispute at this stage");
+        require(currState == State.DISPUTE_OPENED, "Cannot submit proof without an active dispute.");
+        require(sellerSubmittedProof == false, "You've already submitted a proof.");
         sellerSubmittedProof = true;
         sellerProof = proof;
+        disputeHistory.push("Seller submitted proof.");
+    }
+
+    function submitBuyerProof(string memory proof) external onlyBuyer {
+        require(currState == State.DISPUTE_OPENED, "Cannot submit proof without an active dispute.");
+        buyerProof = proof;
+        disputeHistory.push("Buyer submitted additional proof.");
     }
 
     function resolveDispute(bool refundBuyer) external onlyArbitrator {
@@ -79,5 +98,9 @@ contract Escrow {
 
     function getDisputeHistory() external view returns (string[] memory) {
         return disputeHistory;
+    }
+
+    function getState() external view returns (State, string memory) {
+        return (currState, trackingNumber);
     }
 }
