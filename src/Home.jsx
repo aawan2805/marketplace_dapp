@@ -322,17 +322,20 @@ function App() {
             });
 
             const imageUrl = URL.createObjectURL(response.data);
-
+            const estateStatus = await fetchMySaleEscorwState(item.escrow);
+            console.log(estateStatus)
             // Add the new image URL key to the item
             return {
               ...item,
               imageUrl, // Add the image URL as a new key
+              estateStatus,
             };
           } catch (error) {
             console.error(`Error fetching image for item ${item.id}:`, error);
             return {
               ...item,
               imageUrl: null, // Handle the case where the image couldn't be fetched
+              estateStatus,
             };
           }
         })
@@ -512,25 +515,24 @@ function App() {
     }
   };
 
-  const submitShip = async (values) => {
-    const {escrow, itemId} = values;
+  const submitShip = async (item) => {
+    const { escrow } = item;
     if (!escrow || escrow === ethers.constants.AddressZero) {
       return null;
     }
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+    console.log(escrow, inputTrackingNumber)
+
     try {
-      const transaction = await escrowContract.ship(
-        inputTrackingNumber
-    );
-    await transaction.wait();
+      const transaction = await escrowContract.ship(inputTrackingNumber);
+      await transaction.wait();
       message.success("Item tracking number updated successfully.")
     } catch (error) {
       console.error('Error fetching escrow state:', error);
       message.error('Error fetching escrow state:' + error)
     }
-
     setInputTrackingNumber("");
   }
   
@@ -749,8 +751,10 @@ function App() {
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
-                  <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} />
-
+                  <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} /> 
+                    {item.estateStatus[0] === 1 && 
+                      <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
+                    }
                   </Card>
               </Col>
             ))}
@@ -767,16 +771,15 @@ function App() {
                   style={{
                     width: 240,
                   }}
-                  actions={[
-               
-                  ]}
                   cover={<img alt="example" src={item.imageUrl} />}
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
-                  <Card type="" title="">
+                  {item.estateStatus[0] === 1 && 
+                    <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
+                  }
                     {item.estateStatus[0] === 0 && (
-                      <>
+                      <Card type="" title="">
                         <Row>
                           <Col>
                             <Input placeholder="Tracking number" size='' onChange={(e) => setInputTrackingNumber(e.target.value)}/>
@@ -786,9 +789,8 @@ function App() {
                         <Button onClick={() => submitShip(item)} title='Submit' type='primary'>Submit</Button>
 
                         </Row>
-                      </>
+                        </Card>
                     )}
-                  </Card>
                 </Card>
               </Col>
             ))}
