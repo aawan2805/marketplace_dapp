@@ -167,6 +167,34 @@ contract Item {
         console.log("Item purchased: %s by %s", userItems[itemIndex].title, msg.sender);
     }
 
+    function cancelItem(uint _itemId, address _seller) external {
+        ItemStruct[] storage userItems = items[_seller];
+        bool itemFound = false;
+        uint itemIndex;
+
+        for (uint i = 0; i < userItems.length; i++) {
+            if (userItems[i].itemId == _itemId) {
+                itemFound = true;
+                itemIndex = i;
+                break;
+            }
+        }
+
+        require(itemFound, "Item not found");
+        require(userItems[itemIndex].hasBuyer, "Item has not been purchased");
+        require(userItems[itemIndex].buyer == msg.sender, "Only the buyer can cancel the order");
+        require(block.timestamp <= userItems[itemIndex].createdAt + 15 minutes, "Cancellation period has expired");
+
+        // Cancel the order
+        userItems[itemIndex].hasBuyer = false;
+        userItems[itemIndex].buyer = address(0);
+
+        // Refund the buyer
+        userItems[itemIndex].escrow.refundBuyerForCancelItem(); // Refund the buyer
+        userItems[itemIndex].escrow = Escrow(address(0)); // Reset escrow
+        console.log("Order canceled: %s by %s", userItems[itemIndex].title, msg.sender);
+    }
+
 
     function myPurchases() external view returns (ItemStruct[] memory) {
         uint totalPurchases = 0;

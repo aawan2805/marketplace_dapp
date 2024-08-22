@@ -45,6 +45,7 @@ contract Escrow {
         currState = State.AWAITING_DELIVERY;
         sellerSubmittedProof = false;
         boughtAt = block.timestamp;
+        disputeHistory.push("Item bought.");
     }
     
     function ship(string memory tracking) external onlySeller {
@@ -81,6 +82,11 @@ contract Escrow {
         require(currState == State.DISPUTE_OPENED, "Cannot submit proof without an active dispute.");
         buyerProof = proof;
         disputeHistory.push("Buyer submitted additional proof.");
+    }
+
+    function refundBuyerForCancelItem() external {
+        require(currState == State.AWAITING_DELIVERY, "Item already delivered.");
+        payable(buyer).transfer(address(this).balance);
     }
 
     function resolveDispute(bool refundBuyer) external onlyArbitrator {

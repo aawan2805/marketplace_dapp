@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined, UploadOutlined } from '@ant-design/icons';
+import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined, HistoryOutlined } from '@ant-design/icons';
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
-import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip, Tag, Upload } from 'antd';
+import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip, Tag, Drawer } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
 import { API_URL } from '../utils';
@@ -71,6 +71,8 @@ function App() {
   const [file, setFile] = useState("");
   const [imageName, setImageName] = useState()
   const [inputTrackingNumber, setInputTrackingNumber] = useState("");
+  const [openHistoryModal, setOpenHistoryModal] = useState(false);
+  const [historyItem, setHistoryItem] = useState([]);
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -229,7 +231,6 @@ function App() {
               const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
                 responseType: 'blob', // Ensure we treat the response as a binary file
               });
-  
               const imageUrl = URL.createObjectURL(response.data);
   
               // Add the new image URL key to the item
@@ -266,11 +267,16 @@ function App() {
               });
               const imageUrl = URL.createObjectURL(response.data);
               const estateStatus = await fetchMySaleEscorwState(item.escrow);
+              const history = await getItemHistory(item);
+              const buyAt = await fetchEscrowBoughtAt(item.escrow)
+
               // Add the new image URL key to the item
               return {
                 ...item,
                 imageUrl, // Add the image URL as a new key
                 estateStatus,
+                history,
+                boughtAt: buyAt,
               };
             } catch (error) {
               console.error(`Error fetching image for item ${item.id}:`, error);
@@ -278,6 +284,8 @@ function App() {
                 ...item,
                 imageUrl: null, // Handle the case where the image couldn't be fetched
                 estateStatus: null,
+                history,
+                boughtAt: buyAt,
               };
             }
           })
@@ -323,12 +331,14 @@ function App() {
 
             const imageUrl = URL.createObjectURL(response.data);
             const estateStatus = await fetchMySaleEscorwState(item.escrow);
+            const history = await getItemHistory(item);
             console.log(estateStatus)
             // Add the new image URL key to the item
             return {
               ...item,
               imageUrl, // Add the image URL as a new key
               estateStatus,
+              history,
             };
           } catch (error) {
             console.error(`Error fetching image for item ${item.id}:`, error);
@@ -336,6 +346,7 @@ function App() {
               ...item,
               imageUrl: null, // Handle the case where the image couldn't be fetched
               estateStatus,
+              history,
             };
           }
         })
@@ -535,8 +546,49 @@ function App() {
     }
     setInputTrackingNumber("");
   }
+
+  const getItemHistory = async (item) => {
+    const { escrow } = item;
+    if (!escrow || escrow === ethers.constants.AddressZero) {
+      return null;
+    }
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+
+    try {
+      const transaction = await escrowContract.getDisputeHistory();
+      console.log(transaction)
+      return transaction;
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      message.error('Error fetching history:' + error)
+    }
+  } 
   
-  
+  const changeHistoryState = (item) => {
+    setHistoryItem(item.history);
+    setOpenHistoryModal(true);
+  }
+
+  const cancelItem = async (item) => {
+    console.log("CANCELING")
+    if (!contract) {
+      message.error('Wallet not connected');
+      return;
+    }
+    const { seller, itemId } = item;
+
+    try {
+        await requestAccount();
+        const transaction = await contract.cancelItem(Number(itemId.toString()), seller);
+        await transaction.wait();
+
+        message.success('Item canceled.');
+    } catch (error) {
+        message.error('Could not cancel item: ' + error.error.data.message);
+    }
+  }
 
   return (
     <>
@@ -551,6 +603,17 @@ function App() {
           />
         </Col>
       </Row>
+      <Row>
+        <Drawer title="History" onClose={() => setOpenHistoryModal(false)} open={openHistoryModal}>
+          {historyItem.map(i => (
+            <>
+              <p>{i}</p>
+              <br />
+            </>
+          ))}
+        </Drawer>
+      </Row>
+
       {current === 'myItems' &&
       <>
         <Row>
@@ -726,6 +789,7 @@ function App() {
                     width: 240,
                   }}
                   actions={[
+                    <HistoryOutlined onClick={() => changeHistoryState(item)} />,
                     item.escrowState === 1 ? (
                       <>
                         <Row>
@@ -735,16 +799,20 @@ function App() {
                             </Button>
                           </Col>
                         </Row>
-                        <Row>
-                          <Col>
-                            <Button loading={isLoadingConfirmDeliveryButton} danger icon={<CloseOutlined />} onClick={() => confirmDelivery(item.escrow)}> 
-                              Cancel order's item 
-                            </Button>
-                          </Col>
-                        </Row>
                       </>
                     ) : (null),
-                    item.escrowState === 0 ? (<Tooltip title={"Waiting delivery."}><ClockCircleOutlined /></Tooltip>) : (null),
+                    item.escrowState === 0 ? (
+                      <>
+                        <Tooltip title={"Waiting delivery."}>
+                          <ClockCircleOutlined />
+                        </Tooltip>
+                      </>
+                    ) : (null),
+                    item.escrowState === 0 ? (
+                      <Tooltip title={"Cancel item."}>
+                        <CloseOutlined onClick={() => cancelItem(item)} />
+                      </Tooltip>
+                    ) : (null),
                     item.escrowState === 2 ? (null) : (null)
                   ]}
                   cover={<img alt="example" src={item.imageUrl} />}
@@ -752,7 +820,7 @@ function App() {
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
                   <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} /> 
-                    {item.estateStatus[0] === 1 && 
+                    {item.estateStatus[0] !== 0 && 
                       <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
                     }
                   </Card>
@@ -765,34 +833,39 @@ function App() {
         <>
           <Row>
             {mySales.map((item, index) => (
-              <Col span={8} key={index}>
-                <Card
-                  hoverable
-                  style={{
-                    width: 240,
-                  }}
-                  cover={<img alt="example" src={item.imageUrl} />}
-                >
-                  <Meta title={item.title} description={item.description} />
-                  <Meta title={`${item.price.toString()} ETH`} />
-                  {item.estateStatus[0] === 1 && 
-                    <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
-                  }
+              <>
+                <Col span={8} key={index}>
+                  <Card
+                    hoverable
+                    style={{
+                      width: 240,
+                    }}
+                    cover={<img alt="example" src={item.imageUrl} />}
+                    actions={[
+                      <HistoryOutlined onClick={() => changeHistoryState(item)} />
+                    ]}
+                  >
+                    <Meta title={item.title} description={item.description} />
+                    <Meta title={`${item.price.toString()} ETH`} />
+                    <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} /> 
+                    {item.estateStatus[0] !== 0 && 
+                      <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
+                    }
                     {item.estateStatus[0] === 0 && (
                       <Card type="" title="">
-                        <Row>
-                          <Col>
-                            <Input placeholder="Tracking number" size='' onChange={(e) => setInputTrackingNumber(e.target.value)}/>
-                          </Col>
-                        </Row>
-                        <Row>
-                        <Button onClick={() => submitShip(item)} title='Submit' type='primary'>Submit</Button>
-
-                        </Row>
+                          <Row>
+                            <Col>
+                              <Input placeholder="Tracking number" size='' onChange={(e) => setInputTrackingNumber(e.target.value)}/>
+                            </Col>
+                          </Row>
+                          <Row>
+                            <Button onClick={() => submitShip(item)} title='Submit' type='primary'>Submit</Button>
+                          </Row>
                         </Card>
                     )}
-                </Card>
-              </Col>
+                  </Card>
+                </Col>
+              </>
             ))}
           </Row>
         </>
