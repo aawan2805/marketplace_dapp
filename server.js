@@ -34,7 +34,6 @@ app.get('/', (req, res) => {
 
 app.post('/api/images', (req, res) => {
     // Get the file that was set to our field named "image"
-    console.log(req.files.image)
     const { image } = req.files;
 
     // If no image submitted, exit

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined, HistoryOutlined } from '@ant-design/icons';
+import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, UploadOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined, HistoryOutlined } from '@ant-design/icons';
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
-import { Menu, Row, Col, Form, Input, Button, Modal, message, Card, Tooltip, Tag, Drawer } from 'antd';
+import { Menu, Row, Col, Form, Input, Button, Modal, message, Upload, Card, Tooltip, Tag, Drawer, Popconfirm } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ITEM_CONTRACT_ADDRESS } from "../utils";
 import { API_URL } from '../utils';
@@ -69,6 +69,8 @@ function App() {
   const [myPurchases, setMyPurchases] = useState([]);
   const [isLoadingConfirmDeliveryButton, setIsLoadingConfirmDeliveryButton] = useState(false)
   const [file, setFile] = useState("");
+  const [BuyerproofFile, setBuyerProofFile] = useState("");
+  const [sellerProofFile, setSellerProofFile] = useState("");
   const [imageName, setImageName] = useState()
   const [inputTrackingNumber, setInputTrackingNumber] = useState("");
   const [openHistoryModal, setOpenHistoryModal] = useState(false);
@@ -125,7 +127,7 @@ function App() {
       setIsModalVisible(false);    
     } catch (error) {
       console.error('Error adding item:', error);
-      message.error('Failed to add item');       
+      message.error(error.error.data.message);
     }
     setIsAddButtonLoading(false);
   };
@@ -162,8 +164,8 @@ function App() {
         await retrieveUsersItems(); // Refresh items list
     } catch (error) {
         console.error('Error editing item:', error);
-        message.error('Failed to edit item ' + error);
-    }
+        message.error(error.error.data.message);
+      }
     setIsEditButtonLoading(false);
   }
 
@@ -265,6 +267,7 @@ function App() {
               const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
                 responseType: 'blob', // Ensure we treat the response as a binary file
               });
+
               const imageUrl = URL.createObjectURL(response.data);
               const estateStatus = await fetchMySaleEscorwState(item.escrow);
               const history = await getItemHistory(item);
@@ -541,8 +544,8 @@ function App() {
       await transaction.wait();
       message.success("Item tracking number updated successfully.")
     } catch (error) {
-      console.error('Error fetching escrow state:', error);
-      message.error('Error fetching escrow state:' + error)
+      message.error(error.error.data.message);
+      console.error('Could not update tracking number: ' + error.error.data.message);
     }
     setInputTrackingNumber("");
   }
@@ -562,7 +565,7 @@ function App() {
       return transaction;
     } catch (error) {
       console.error('Error fetching history:', error);
-      message.error('Error fetching history:' + error)
+      message.error(error.error.data.message);
     }
   } 
   
@@ -586,7 +589,107 @@ function App() {
 
         message.success('Item canceled.');
     } catch (error) {
-        message.error('Could not cancel item: ' + error.error.data.message);
+      message.error(error.error.data.message);
+    }
+  }
+
+  const raiseDispute = async (item) => {
+    const { escrow } = item;
+    if (!escrow || escrow === ethers.constants.AddressZero) {
+      message.error("Invalid escrow address");
+      return;
+    }
+  
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+  
+    try {
+      const transaction = await escrowContract.openDispute();
+      await transaction.wait();
+      message.success("Dispute opened successfully.");
+    } catch (error) {
+      console.error("Error raising dispute:", error);
+      message.error(error.error?.data?.message || error.message);
+    }
+  };
+
+  const resolveDispute = async (item, refundToBuyer) => {
+    const { escrow } = item;
+    if (!escrow || escrow === ethers.constants.AddressZero) {
+      message.error("Invalid escrow address");
+      return;
+    }
+  
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+  
+    try {
+      const transaction = await escrowContract.resolveDispute(refundToBuyer);
+      await transaction.wait();
+      message.success(`Dispute resolved: ${refundToBuyer ? "Refunded to Buyer" : "Paid to Seller"}`);
+    } catch (error) {
+      console.error("Error resolving dispute:", error);
+      message.error(error.error?.data?.message || error.message);
+    }
+  };
+  
+  const props = {
+    name: 'file',
+    action: 'https://localhost:8080/api/images',
+    headers: {
+      authorization: 'authorization-text',
+    },
+    onChange(info) {
+      if (info.file.status !== 'uploading') {
+        console.log(info.file, info.fileList);
+      }
+      if (info.file.status === 'done') {
+        message.success(`${info.file.name} file uploaded successfully`);
+      } else if (info.file.status === 'error') {
+        message.error(`${info.file.name} file upload failed.`);
+      }
+    },
+  }
+
+  const submitProof = async (item, isBuyer) => {
+    console.log("OK")
+    const { escrow } = item;
+    if (!contract) {
+      message.error('Wallet not connected');
+    }
+    if (!escrow || escrow === ethers.constants.AddressZero) {
+      message.error("Invalid escrow address");
+      return;
+    }
+  
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+  
+    try {
+      const formData = new FormData()
+      if(isBuyer) {
+        formData.append("image", BuyerproofFile)
+      } else {
+        formData.append("image", sellerProofFile)
+      }
+      console.log(formData)
+      const result = await axios.post(`${API_URL}/images`, formData, { headers: {'Content-Type': 'multipart/form-data'}})
+      console.log("Image uploaded successfully")
+  
+      if(isBuyer) {
+        const transaction = await escrowContract.submitBuyerProof(result.data.imageId);
+        await transaction.wait();
+      } else {
+        const transaction = await escrowContract.submitSellerProof(result.data.imageId);
+        await transaction.wait();
+      }
+      message.success("Proof submitted.");
+    } catch (error) {
+      console.error("Error resolving dispute:", error);
+      message.error(error.error?.data?.message || error.message);
     }
   }
 
@@ -799,6 +902,18 @@ function App() {
                             </Button>
                           </Col>
                         </Row>
+                        <Row>
+                          <Popconfirm
+                            title="Open dispute"
+                            description="Are you sure to open a new dispute for this item?"
+                            onConfirm={() => raiseDispute(item)}
+                            onCancel={() => message.error("Dispute not opened.")}
+                            okText="Yes"
+                            cancelText="No"
+                          >
+                            <Button>Open dispute</Button>
+                          </Popconfirm>
+                        </Row>
                       </>
                     ) : (null),
                     item.escrowState === 0 ? (
@@ -813,17 +928,37 @@ function App() {
                         <CloseOutlined onClick={() => cancelItem(item)} />
                       </Tooltip>
                     ) : (null),
-                    item.escrowState === 2 ? (null) : (null)
                   ]}
                   cover={<img alt="example" src={item.imageUrl} />}
                 >
                   <Meta title={item.title} description={item.description} />
                   <Meta title={`${item.price.toString()} ETH`} />
                   <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} /> 
-                    {item.estateStatus[0] !== 0 && 
-                      <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
-                    }
-                  </Card>
+                  {item.estateStatus[0] !== 0 && 
+                    <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
+                  }
+                  {item.estateStatus[0] === 2 && 
+                    <Meta title={<Tag color='green'>Delivered</Tag>} /> 
+                  }
+                  {item.estateStatus[0] === 3 && 
+                    <Meta title={<Tag color='blue'>Dispute open</Tag>} /> 
+                  }
+                  {item.escrowState === 3 &&
+                    <>
+                      <br />
+                      <p style={{color: "red"}}>* Please provide your proof.</p>
+                      <input
+                        filename={BuyerproofFile} 
+                        onChange={e => setBuyerProofFile(e.target.files[0])} 
+                        type="file" 
+                        id="proofImg"
+                        accept="image/*"
+                        required
+                      />
+                      <Button onClick={() => submitProof(item, true)}>Submit proof</Button>
+                    </>
+                  }
+                </Card>
               </Col>
             ))}
           </Row>
@@ -851,6 +986,12 @@ function App() {
                     {item.estateStatus[0] !== 0 && 
                       <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
                     }
+                    {item.estateStatus[0] === 2 && 
+                      <Meta title={<Tag color='green'>Delivered</Tag>} /> 
+                    }
+                    {item.estateStatus[0] === 3 && 
+                      <Meta title={<Tag color='blue'>Dispute open</Tag>} /> 
+                    }
                     {item.estateStatus[0] === 0 && (
                       <Card type="" title="">
                           <Row>
@@ -863,6 +1004,21 @@ function App() {
                           </Row>
                         </Card>
                     )}
+                    {item.estateStatus[0] === 3 &&
+                      (<>
+                        <br />
+                        <p style={{color: "red"}}>* Please provide your proof of item shipping.</p>
+                        <input
+                          filename={sellerProofFile} 
+                          onChange={e => setSellerProofFile(e.target.files[0])} 
+                          type="file" 
+                          id="proofSellerImg"
+                          accept="image/*"
+                          required
+                        />
+                        <Button onClick={() => submitProof(item, false)}>Submit proof</Button>
+                      </>)
+                      }
                   </Card>
                 </Col>
               </>

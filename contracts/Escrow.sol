@@ -18,8 +18,9 @@ contract Escrow {
     address private arbitrator;
     string[] public disputeHistory;
     bool private sellerSubmittedProof;
-    string private sellerProof;
-    string private buyerProof;
+    string public sellerProof;
+    string public buyerProof;
+    bool public isDisputeOpen;
     string private trackingNumber;
 
 
@@ -46,10 +47,12 @@ contract Escrow {
         sellerSubmittedProof = false;
         boughtAt = block.timestamp;
         disputeHistory.push("Item bought.");
+        isDisputeOpen = false;
     }
     
     function ship(string memory tracking) external onlySeller {
         require(currState == State.AWAITING_DELIVERY, "Cannot ship. Incorrect status.");
+        require(block.timestamp >= boughtAt + 15 minutes, "Cannot ship before 15-minute cancellation period has elapsed.");
         currState = State.SHIPPED_OUT_BY_SELLER;
         trackingNumber = tracking;
         disputeHistory.push("Item sent by the seller.");
@@ -62,51 +65,49 @@ contract Escrow {
         disputeHistory.push("Item recieved by the buyer.");
     }
 
+    function refundBuyerForCancelItem() external {
+        payable(buyer).transfer(address(this).balance);
+    }
+
     // Disputes
-    function openBuyerDispute(string memory proof) external onlyBuyer {
+    function openDispute() external onlyBuyer {
         require(currState == State.SHIPPED_OUT_BY_SELLER, "Cannot open dispute at this stage");
         currState = State.DISPUTE_OPENED;
-        buyerProof = proof;
-        disputeHistory.push("Dispute opened by buyer.");
+        isDisputeOpen = true;
+        disputeHistory.push("Dispute opened by the buyer.");
     }
 
     function submitSellerProof(string memory proof) external onlySeller {
-        require(currState == State.DISPUTE_OPENED, "Cannot submit proof without an active dispute.");
-        require(sellerSubmittedProof == false, "You've already submitted a proof.");
-        sellerSubmittedProof = true;
+        require(currState == State.DISPUTE_OPENED, "No active dispute");
+        require(bytes(sellerProof).length == 0, "Proof already submitted by seller");
         sellerProof = proof;
-        disputeHistory.push("Seller submitted proof.");
     }
 
     function submitBuyerProof(string memory proof) external onlyBuyer {
-        require(currState == State.DISPUTE_OPENED, "Cannot submit proof without an active dispute.");
+        require(currState == State.DISPUTE_OPENED, "No active dispute");
+        require(bytes(buyerProof).length == 0, "Proof already submitted by buyer");
+        require(bytes(sellerProof).length > 0, "Seller must submit proof first");
         buyerProof = proof;
-        disputeHistory.push("Buyer submitted additional proof.");
-    }
-
-    function refundBuyerForCancelItem() external {
-        require(currState == State.AWAITING_DELIVERY, "Item already delivered.");
-        payable(buyer).transfer(address(this).balance);
     }
 
     function resolveDispute(bool refundBuyer) external onlyArbitrator {
         require(currState == State.DISPUTE_OPENED, "No active dispute");
-        if(refundBuyer) {
-            disputeHistory.push("Buyer was refunded.");
+        if (refundBuyer) {
             payable(buyer).transfer(address(this).balance);
+            disputeHistory.push("Dispute closed. Buyer was refunded.");
         } else {
-            disputeHistory.push("Seller was refunded.");
             seller.transfer(address(this).balance);
+            disputeHistory.push("Dispute closed. Seller was refunded.");
         }
-        
         currState = State.DISPUTE_CLOSED;
+        isDisputeOpen = false;
     }
 
-    function getDisputeHistory() external view returns (string[] memory) {
-        return disputeHistory;
+    function getDisputeHistory() external view returns (string[] memory, string memory, string memory) {
+        return (disputeHistory, sellerProof, buyerProof);
     }
 
-    function getState() external view returns (State, string memory) {
-        return (currState, trackingNumber);
+    function getState() external view returns (State, string memory, string memory, string memory) {
+        return (currState, trackingNumber, sellerProof, buyerProof);
     }
 }
