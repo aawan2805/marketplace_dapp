@@ -74,7 +74,7 @@ function App() {
   const [imageName, setImageName] = useState()
   const [inputTrackingNumber, setInputTrackingNumber] = useState("");
   const [openHistoryModal, setOpenHistoryModal] = useState(false);
-  const [historyItem, setHistoryItem] = useState([]);
+  const [item, setItem] = useState([]);
 
   const requestAccount = async () => {
     await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -104,6 +104,15 @@ function App() {
 
   }, []);
 
+  const handleError = (error) => {
+    if(error.code === 'ACTION_REJECTED') {
+      message.error('Action rejected by user')
+    } else {
+      console.log('Failed to delete item ' + error);
+      message.error(error.error.data.message);  
+    }
+  }
+
   const handleFinish = async (values) => {
     if (!contract) {
       message.error('Wallet not connected');
@@ -126,26 +135,26 @@ function App() {
       form.resetFields();
       setIsModalVisible(false);    
     } catch (error) {
-      console.error('Error adding item:', error);
-      message.error(error.error.data.message);
+      handleError(error);
     }
     setIsAddButtonLoading(false);
   };
 
   const handleEditModalFinish = async (values) => {
+    console.log(values)
     if (!contract) {
         message.error('Wallet not connected');
         return;
     }
     // setIsEditButtonLoading(true);
-    const { title, description, price, image, itemId, imageUrl } = values;
+    const { title, description, price, itemId } = values;
 
     try {
         await requestAccount();
 
-        // const formData = new FormData()
-        // formData.append("image", file)
-        // const result = await axios.post(`${API_URL}/images`, formData, { headers: {'Content-Type': 'multipart/form-data'}})
+        const formData = new FormData()
+        formData.append("image", file)
+        const result = await axios.post(`${API_URL}/images`, formData, { headers: {'Content-Type': 'multipart/form-data'}})
         // setImageName(result.data.imageId)
         // console.log("Image uploaded successfully")
 
@@ -154,18 +163,17 @@ function App() {
             title,
             description,
             Number(price.toString()),
-            image
+            result.data.imageId
         );
-            await transaction.wait();
+        await transaction.wait();
 
         message.success('Item edited successfully');
         editForm.resetFields();
         setIsEditModalVisible(false);
         await retrieveUsersItems(); // Refresh items list
     } catch (error) {
-        console.error('Error editing item:', error);
-        message.error(error.error.data.message);
-      }
+      handleError(error);
+    }
     setIsEditButtonLoading(false);
   }
 
@@ -218,7 +226,7 @@ function App() {
         setUserItems(updatedItems);
         console.log(updatedItems)
       } catch (error) {
-        console.error('Error retrieving items:', error);
+        handleError(error);
       }
     }
   };
@@ -252,7 +260,7 @@ function App() {
         const itemResponse = updatedItems.filter(item => item.itemId.toString() != 0);
         setGlobalItems(itemResponse);
       } catch (error) {
-        console.error('Error retrieving items:', error);
+        handleError(error);
       }
     }
   };
@@ -267,28 +275,48 @@ function App() {
               const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
                 responseType: 'blob', // Ensure we treat the response as a binary file
               });
-
               const imageUrl = URL.createObjectURL(response.data);
+
               const estateStatus = await fetchMySaleEscorwState(item.escrow);
               const history = await getItemHistory(item);
               const buyAt = await fetchEscrowBoughtAt(item.escrow)
+              let imageUrlSeller = null;
+              let imageUrlBuyer = null;
 
-              // Add the new image URL key to the item
-              return {
+              if(history[1] !== "") {
+                const responseSellerProof = await axios.get(`http://localhost:8080/api/images/${history[1]}`, {
+                  responseType: 'blob', // Ensure we treat the response as a binary file
+                });
+                imageUrlSeller = URL.createObjectURL(responseSellerProof.data);  
+              }
+              if(history[2] !== "") {
+                const responseBuyerProof = await axios.get(`http://localhost:8080/api/images/${history[2]}`, {
+                  responseType: 'blob', // Ensure we treat the response as a binary file
+                });
+                imageUrlBuyer = URL.createObjectURL(responseBuyerProof.data);  
+              }
+
+              let data = {
                 ...item,
                 imageUrl, // Add the image URL as a new key
                 estateStatus,
                 history,
                 boughtAt: buyAt,
+                imageUrlSeller,  // Add imageUrlSeller to the data
+                imageUrlBuyer,   // Add imageUrlBuyer to the data
               };
+              return data;
+              
             } catch (error) {
-              console.error(`Error fetching image for item ${item.id}:`, error);
+              handleError(error);
               return {
                 ...item,
                 imageUrl: null, // Handle the case where the image couldn't be fetched
                 estateStatus: null,
                 history,
                 boughtAt: buyAt,
+                imageUrlSeller: null,  // Add imageUrlSeller to the data
+                imageUrlBuyer: null,   // Add imageUrlBuyer to the data
               };
             }
           })
@@ -296,7 +324,7 @@ function App() {
         console.log(updatedItems);
         setMySales(updatedItems);
       } catch (error) {
-        console.error('Error retrieving items:', error);
+        handleError(error);
       }
     }
   };
@@ -335,6 +363,22 @@ function App() {
             const imageUrl = URL.createObjectURL(response.data);
             const estateStatus = await fetchMySaleEscorwState(item.escrow);
             const history = await getItemHistory(item);
+            let imageUrlSeller = null;
+            let imageUrlBuyer = null;
+
+            if(history[1] !== "") {
+              const responseSellerProof = await axios.get(`http://localhost:8080/api/images/${history[1]}`, {
+                responseType: 'blob', // Ensure we treat the response as a binary file
+              });
+              imageUrlSeller = URL.createObjectURL(responseSellerProof.data);  
+            }
+            if(history[2] !== "") {
+              const responseBuyerProof = await axios.get(`http://localhost:8080/api/images/${history[2]}`, {
+                responseType: 'blob', // Ensure we treat the response as a binary file
+              });
+              imageUrlBuyer = URL.createObjectURL(responseBuyerProof.data);  
+            }
+
             console.log(estateStatus)
             // Add the new image URL key to the item
             return {
@@ -342,6 +386,9 @@ function App() {
               imageUrl, // Add the image URL as a new key
               estateStatus,
               history,
+              imageUrlSeller,  // Add imageUrlSeller to the data
+              imageUrlBuyer,   // Add imageUrlBuyer to the data
+
             };
           } catch (error) {
             console.error(`Error fetching image for item ${item.id}:`, error);
@@ -350,14 +397,16 @@ function App() {
               imageUrl: null, // Handle the case where the image couldn't be fetched
               estateStatus,
               history,
+              imageUrlSeller: null,  // Add imageUrlSeller to the data
+              imageUrlBuyer: null,   // Add imageUrlBuyer to the data
+
             };
           }
         })
       );
       setMyPurchases(updatedPurchasesWithStates);
-      } catch (error) {
-      console.error('Error fetching purchases:', error);
-      message.error("Error fetching purchases " + error)
+    } catch (error) {
+        handleError(error);
     }
   }
 
@@ -406,11 +455,7 @@ function App() {
         setOpenDeleteModal(false);
         await retrieveUsersItems(); // Refresh items list
       } catch (error) {
-        if(error.code === 'ACTION_REJECTED') {
-          message.error('Action rejected by user')
-        } else {
-          message.error('Failed to delete item ' + error);
-        }
+        handleError(error);
         setOpenDeleteModal(false);
     }
     setIsConfirmDeleteButtonLoading(false);
@@ -454,8 +499,7 @@ function App() {
   
       await checkBalance(userAddress); // Check balance after transaction
     } catch (error) {
-      console.error('Error purchasing item:', error);
-      message.error('Error purchasing item');
+      handleError(error);
     } finally {
       setIsPurchaseButtonDisabled(false);
     }
@@ -507,27 +551,11 @@ function App() {
       await transaction.wait();
       message.success("Item delivery confirmed successfully.")
     } catch (error) {
-      console.error('Error fetching escrow state:', error);
-      message.error('Error fetching escrow state:' + error)
+      handleError(error);
     }
     setIsLoadingConfirmDeliveryButton(false)
 
   }
-
-  const fetchImageUrl = async (imageId) => {
-    try {
-      const imageUrl = `http://localhost:8080/api/images/${imageId}`;
-      const response = await axios.get(imageUrl, {
-        responseType: 'blob', // This ensures that the response is treated as a binary file
-      });
-  
-      // Instead of using URL.createObjectURL, just return the URL you constructed
-      return imageUrl;
-    } catch (error) {
-      console.error('Error fetching image:', error);
-      return null;
-    }
-  };
 
   const submitShip = async (item) => {
     const { escrow } = item;
@@ -544,8 +572,7 @@ function App() {
       await transaction.wait();
       message.success("Item tracking number updated successfully.")
     } catch (error) {
-      message.error(error.error.data.message);
-      console.error('Could not update tracking number: ' + error.error.data.message);
+      handleError(error);
     }
     setInputTrackingNumber("");
   }
@@ -564,13 +591,13 @@ function App() {
       console.log(transaction)
       return transaction;
     } catch (error) {
-      console.error('Error fetching history:', error);
-      message.error(error.error.data.message);
+      handleError(error);
     }
   } 
   
   const changeHistoryState = (item) => {
-    setHistoryItem(item.history);
+    console.log("IS", item)
+    setItem(item);
     setOpenHistoryModal(true);
   }
 
@@ -609,8 +636,7 @@ function App() {
       await transaction.wait();
       message.success("Dispute opened successfully.");
     } catch (error) {
-      console.error("Error raising dispute:", error);
-      message.error(error.error?.data?.message || error.message);
+      handleError(error);
     }
   };
 
@@ -688,8 +714,7 @@ function App() {
       }
       message.success("Proof submitted.");
     } catch (error) {
-      console.error("Error resolving dispute:", error);
-      message.error(error.error?.data?.message || error.message);
+      handleError(error);
     }
   }
 
@@ -708,12 +733,24 @@ function App() {
       </Row>
       <Row>
         <Drawer title="History" onClose={() => setOpenHistoryModal(false)} open={openHistoryModal}>
-          {historyItem.map(i => (
+          {item !== null && item !== undefined && item.history !== undefined && item.history[0].map(i => (
             <>
               <p>{i}</p>
               <br />
             </>
           ))}
+          {item.imageUrlBuyer !== "" && 
+            <>
+              <p>Buyer proof:</p>
+              <img src={item.imageUrlBuyer} />
+            </>
+          }
+          {item.imageUrlBuyer !== "" && 
+            <>
+              <p>Seller proof:</p>
+              <img src={item.imageUrlBuyer} />
+            </>
+          }
         </Drawer>
       </Row>
 
@@ -943,7 +980,7 @@ function App() {
                   {item.estateStatus[0] === 3 && 
                     <Meta title={<Tag color='blue'>Dispute open</Tag>} /> 
                   }
-                  {item.escrowState === 3 &&
+                  {item.escrowState === 3 && item.history[2] === "" &&
                     <>
                       <br />
                       <p style={{color: "red"}}>* Please provide your proof.</p>
@@ -1004,7 +1041,7 @@ function App() {
                           </Row>
                         </Card>
                     )}
-                    {item.estateStatus[0] === 3 &&
+                    {item.estateStatus[0] === 3 && item.history[1] === "" &&
                       (<>
                         <br />
                         <p style={{color: "red"}}>* Please provide your proof of item shipping.</p>
