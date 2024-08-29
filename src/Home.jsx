@@ -3,8 +3,7 @@ import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, UploadOutlined, Plu
 import { EditOutlined, EllipsisOutlined, SettingOutlined } from '@ant-design/icons';
 import { Menu, Row, Col, Form, Input, Button, Modal, message, Upload, Card, Tooltip, Tag, Drawer, Popconfirm } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { ITEM_CONTRACT_ADDRESS } from "../utils";
-import { API_URL } from '../utils';
+import { ITEM_CONTRACT_ADDRESS, ARBITRATOR_ADDRESS, API_URL } from "../utils";
 import { ethers } from "ethers";
 import Item from "./artifacts/contracts/Item.sol/Item.json";
 import Escrow from "./artifacts/contracts/Escrow.sol/Escrow.json"
@@ -92,6 +91,12 @@ function App() {
           const signer = provider.getSigner();
           const itemContract = new ethers.Contract(ITEM_CONTRACT_ADDRESS, Item.abi, signer);
           setContract(itemContract);
+
+          const userAddress = await signer.getAddress();
+          if(userAddress === ARBITRATOR_ADDRESS){
+            navigate("/arbitrator");
+          }
+
         } catch (error) {
           console.log('Error checking wallet connection:', error);
           navigate("/");
@@ -100,7 +105,12 @@ function App() {
         message.error('Please install MetaMask!');
       }
     };
+    const userAddress = async () => {
+
+    }
+
     checkWalletConnection();
+    userAddress();
 
   }, []);
 

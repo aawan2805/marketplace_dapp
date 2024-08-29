@@ -276,5 +276,35 @@ contract Item {
         console.log("Item shipped: %s by %s", userItems[itemIndex].title, msg.sender);
     }
 
+    // Function to retrieve items with an opened dispute
+    function getItemsWithDispute() external view returns (ItemStruct[] memory) {
+        uint totalDisputes = 0;
+        uint currentIndex = 0;
 
+        // First count the number of items with an open dispute
+        for (uint s = 0; s < sellers.length; s++) {
+            ItemStruct[] storage sellerItems = items[sellers[s]];
+            for (uint i = 0; i < sellerItems.length; i++) {
+                if (sellerItems[i].hasBuyer && sellerItems[i].escrow.currState() == Escrow.State.DISPUTE_OPENED) {
+                    totalDisputes++;
+                }
+            }
+        }
+
+        // Create an array with the exact number of disputed items
+        ItemStruct[] memory disputedItems = new ItemStruct[](totalDisputes);
+
+        // Populate the array with items having an open dispute
+        for (uint s = 0; s < sellers.length; s++) {
+            ItemStruct[] storage sellerItems = items[sellers[s]];
+            for (uint i = 0; i < sellerItems.length; i++) {
+                if (sellerItems[i].hasBuyer && sellerItems[i].escrow.currState() == Escrow.State.DISPUTE_OPENED) {
+                    disputedItems[currentIndex] = sellerItems[i];
+                    currentIndex++;
+                }
+            }
+        }
+
+        return disputedItems;
+    }
 }

@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import Home from './Home.jsx'
+import Arbitrator from './Arbitrator.jsx'
 import ErrorPage from "./error-page";
 
 import {
@@ -19,7 +20,11 @@ const router = createBrowserRouter([
     path: "/home",
     element: <Home />,
     errorElement: <ErrorPage />,
-
+  },
+  {
+    path: "/arbitrator",
+    element: <Arbitrator />,
+    errorElement: <ErrorPage />,
   }
 ]);
 
