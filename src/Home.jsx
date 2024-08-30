@@ -965,7 +965,7 @@ function App() {
                     ) : (null),
                     item.escrowState === 0 ? (
                       <>
-                        <Tooltip title={"Waiting delivery."}>
+                        <Tooltip title={"Waiting tracking number."}>
                           <ClockCircleOutlined />
                         </Tooltip>
                       </>
