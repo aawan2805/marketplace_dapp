@@ -52,7 +52,7 @@ contract Escrow {
     
     function ship(string memory tracking) external onlySeller {
         require(currState == State.AWAITING_DELIVERY, "Cannot ship. Incorrect status.");
-        require(block.timestamp >= boughtAt + 15 minutes, "Cannot ship before 15-minute cancellation period has elapsed.");
+        require(block.timestamp >= boughtAt + 1 minutes, "Cannot ship before 1-minute cancellation period has elapsed.");
         currState = State.SHIPPED_OUT_BY_SELLER;
         trackingNumber = tracking;
         disputeHistory.push("Item sent by the seller.");
@@ -66,7 +66,14 @@ contract Escrow {
     }
 
     function refundBuyerForCancelItem() external {
+        require(currState == State.AWAITING_DELIVERY, "Cannot refund. Item has already been shipped or is in another state.");
+        require(block.timestamp < boughtAt + 1 minutes, "Cancellation period has passed.");
+
         payable(buyer).transfer(address(this).balance);
+
+        currState = State.DISPUTE_CLOSED; // State updated to reflect the refund
+        disputeHistory.push("Item cancelled and refunded to the buyer.");
+
     }
 
     // Disputes

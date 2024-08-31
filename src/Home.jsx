@@ -621,8 +621,13 @@ function App() {
 
     try {
         await requestAccount();
-        const transaction = await contract.cancelItem(Number(itemId.toString()), seller);
-        await transaction.wait();
+        const transaction = await contract.cancelItem(Number(itemId.toString()), seller, true, false);
+        const receipt = await transaction.wait();
+        console.log(receipt)
+        receipt.events.forEach((event) => {
+          console.log("Event:", event);
+        });
+  
 
         message.success('Item canceled.');
     } catch (error) {

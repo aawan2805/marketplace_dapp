@@ -31,7 +31,8 @@ function App() {
               const signer = provider.getSigner();
               const itemContract = new ethers.Contract(ITEM_CONTRACT_ADDRESS, Item.abi, signer);
               setContract(itemContract);
-    
+              retrieveUsersItems();
+
             } catch (error) {
               console.log('Error checking wallet connection:', error);
               navigate("/arbitrator");
@@ -41,7 +42,6 @@ function App() {
           }
         };   
         checkWalletConnection();
-        retrieveUsersItems();
     }, []);
 
     const handleError = (error) => {
@@ -132,22 +132,21 @@ function App() {
         setOpenHistoryModal(true);
     }    
 
-    const refund = async (item, buyer) => {
-        const { escrow } = item;
-        if (!escrow || escrow === ethers.constants.AddressZero) {
+    const refund = async (item, refundBuyer) => {
+        if (!contract || contract === ethers.constants.AddressZero) {
             return null;
         }
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+
+        const { itemId, seller } = item;
 
         try {
-            if(buyer === true) {
-                // Refund buyer
-                const transaction = await escrowContract.resolveDispute(true);
+            // Refund buyer or not
+            const transaction = await contract.cancelItem(Number(itemId.toString()), seller, false, refundBuyer);
+            await transaction.wait();
+
+            if(refundBuyer === true) {
                 message.success("Buyer was refunded.")
             } else {
-                const transaction = await escrowContract.resolveDispute(false);
                 message.success("Seller was refunded.")
             }
         } catch (error ) {
@@ -162,7 +161,7 @@ function App() {
             <Drawer title="History" onClose={() => setOpenHistoryModal(false)} open={openHistoryModal}>
                 {item !== null && item !== undefined && item.history !== undefined && item.history[0].map(i => (
                     <>
-                    <p>{i}</p>
+                    <p key={item.itemId}>{i}</p>
                     <br />
                     </>
                 ))}
@@ -184,6 +183,7 @@ function App() {
                 {openedDisputeItems.map((item, index) => (
                     <Col span={8} key={index}>
                         <Card
+                            key={item.itemId}
                             hoverable
                             style={{
                                 width: 240,
