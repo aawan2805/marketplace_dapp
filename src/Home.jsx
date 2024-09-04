@@ -135,10 +135,12 @@ function App() {
     console.log("Image uploaded successfully")
 
     const { title, description, price, image } = values;
+    console.log("PRICE in adding IS: ", typeof price);
     setIsAddButtonLoading(true);
     try {
       await requestAccount();
-      const transaction = await contract.addItem(title, description, Number(price), result.data.imageId);
+      const weiPrice = ethers.utils.parseUnits(price.toString(), 'ether'); // Convert to Wei
+      const transaction = await contract.addItem(title, description, weiPrice, result.data.imageId);
       await transaction.wait();
 
       message.success('Item added successfully');
@@ -161,18 +163,19 @@ function App() {
 
     try {
         await requestAccount();
-
+        console.log("PRICE in editing IS: ", typeof price);
         const formData = new FormData()
         formData.append("image", file)
         const result = await axios.post(`${API_URL}/images`, formData, { headers: {'Content-Type': 'multipart/form-data'}})
         // setImageName(result.data.imageId)
         // console.log("Image uploaded successfully")
 
+        const ethPrice = ethers.utils.parseUnits(price.toString(), 'ether');
         const transaction = await contract.editItem(
             Number(itemId.toString()),
             title,
             description,
-            Number(price.toString()),
+            ethPrice,
             result.data.imageId
         );
         await transaction.wait();
@@ -216,19 +219,21 @@ function App() {
               const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
                 responseType: 'blob', // Ensure we treat the response as a binary file
               });
-  
+              const ethPrice = ethers.utils.formatUnits(item.price.toString(), 'ether');
               const imageUrl = URL.createObjectURL(response.data);
   
               // Add the new image URL key to the item
               return {
                 ...item,
                 imageUrl, // Add the image URL as a new key
+                ethPrice
               };
             } catch (error) {
               console.error(`Error fetching image for item ${item.id}:`, error);
               return {
                 ...item,
                 imageUrl: null, // Handle the case where the image couldn't be fetched
+                ethPrice: 0,
               };
             }
           })
@@ -252,17 +257,20 @@ function App() {
                 responseType: 'blob', // Ensure we treat the response as a binary file
               });
               const imageUrl = URL.createObjectURL(response.data);
-  
+              const ethPrice = ethers.utils.formatUnits(item.price.toString(), 'ether');
+
               // Add the new image URL key to the item
               return {
                 ...item,
                 imageUrl, // Add the image URL as a new key
+                ethPrice,
               };
             } catch (error) {
               console.error(`Error fetching image for item ${item.id}:`, error);
               return {
                 ...item,
                 imageUrl: null, // Handle the case where the image couldn't be fetched
+                ethPrice: 0,
               };
             }
           })
@@ -286,8 +294,9 @@ function App() {
                 responseType: 'blob', // Ensure we treat the response as a binary file
               });
               const imageUrl = URL.createObjectURL(response.data);
-
+              const ethPrice = ethers.utils.formatUnits(item.price.toString(), 'ether');
               const estateStatus = await fetchMySaleEscorwState(item.escrow);
+              console.log("estateStatus: ", estateStatus)
               const history = await getItemHistory(item);
               const buyAt = await fetchEscrowBoughtAt(item.escrow)
               let imageUrlSeller = null;
@@ -314,6 +323,7 @@ function App() {
                 boughtAt: buyAt,
                 imageUrlSeller,  // Add imageUrlSeller to the data
                 imageUrlBuyer,   // Add imageUrlBuyer to the data
+                ethPrice,
               };
               return data;
               
@@ -327,6 +337,7 @@ function App() {
                 boughtAt: buyAt,
                 imageUrlSeller: null,  // Add imageUrlSeller to the data
                 imageUrlBuyer: null,   // Add imageUrlBuyer to the data
+                ethPrice: 0,
               };
             }
           })
@@ -369,7 +380,7 @@ function App() {
             const response = await axios.get(`http://localhost:8080/api/images/${item.image}`, {
               responseType: 'blob', // Ensure we treat the response as a binary file
             });
-
+            const ethPrice = ethers.utils.formatUnits(item.price.toString(), 'ether');
             const imageUrl = URL.createObjectURL(response.data);
             const estateStatus = await fetchMySaleEscorwState(item.escrow);
             const history = await getItemHistory(item);
@@ -388,8 +399,6 @@ function App() {
               });
               imageUrlBuyer = URL.createObjectURL(responseBuyerProof.data);  
             }
-
-            console.log(estateStatus)
             // Add the new image URL key to the item
             return {
               ...item,
@@ -398,6 +407,7 @@ function App() {
               history,
               imageUrlSeller,  // Add imageUrlSeller to the data
               imageUrlBuyer,   // Add imageUrlBuyer to the data
+              ethPrice,
 
             };
           } catch (error) {
@@ -409,6 +419,7 @@ function App() {
               history,
               imageUrlSeller: null,  // Add imageUrlSeller to the data
               imageUrlBuyer: null,   // Add imageUrlBuyer to the data
+              ethPrice: 0,
 
             };
           }
@@ -440,7 +451,7 @@ function App() {
         description: item.description,
         image: item.imageUrl,
         itemId: Number(item.itemId.toString()),
-        price: Number(item.price.toString()),
+        price: parseInt(ethers.utils.formatUnits(item.price.toString(), 'ether')),
       });
     setIsEditModalVisible(true);
   };
@@ -572,10 +583,11 @@ function App() {
     if (!escrow || escrow === ethers.constants.AddressZero) {
       return null;
     }
+
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
-    console.log(escrow, inputTrackingNumber)
+    console.log("TRACKING: ", inputTrackingNumber)
 
     try {
       const transaction = await escrowContract.ship(inputTrackingNumber);
@@ -623,7 +635,7 @@ function App() {
         await requestAccount();
         const transaction = await contract.cancelItem(Number(itemId.toString()), seller, true, false);
         const receipt = await transaction.wait();
-        console.log(receipt)
+
         receipt.events.forEach((event) => {
           console.log("Event:", event);
         });
@@ -813,7 +825,7 @@ function App() {
                     </Modal>
 
                     <Meta title={item.title} description={item.description} />
-                    <Meta title={`${item.price.toString()} ETH`} />
+                    <Meta title={`${item.ethPrice} ETH`} />
                   </Card>
             </Col>
           ))}
@@ -925,7 +937,7 @@ function App() {
                   cover={<img alt="example" src={item.imageUrl} />}
                 >
                   <Meta title={item.title} description={item.description} />
-                  <Meta title={`${item.price.toString()} ETH`} />
+                  <Meta title={`${item.ethPrice} ETH`} />
                 </Card>
               </Col>
             ))}
@@ -984,7 +996,7 @@ function App() {
                   cover={<img alt="example" src={item.imageUrl} />}
                 >
                   <Meta title={item.title} description={item.description} />
-                  <Meta title={`${item.price.toString()} ETH`} />
+                  <Meta title={`${item.ethPrice} ETH`} />
                   <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} /> 
                   {item.estateStatus[0] !== 0 && 
                     <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 
@@ -1033,7 +1045,7 @@ function App() {
                     ]}
                   >
                     <Meta title={item.title} description={item.description} />
-                    <Meta title={`${item.price.toString()} ETH`} />
+                    <Meta title={`${item.ethPrice} ETH`} />
                     <Meta title={<Tag color='#87d068'>{new Date(item.boughtAt.toNumber() * 1000).toString().split("GMT")[0]}</Tag>} /> 
                     {item.estateStatus[0] !== 0 && 
                       <Meta title={<Tag color='red'>{item.estateStatus[1]}</Tag>} /> 

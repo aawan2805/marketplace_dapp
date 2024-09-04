@@ -50,7 +50,7 @@ app.post('/api/images', (req, res) => {
     // Move the uploaded image to our upload folder
     const imagePath = path.join(imagesDir, newUuid);
     image.mv(imagePath);
-
+    console.log(newUuid)
     // All good
     res.send({ imageId: newUuid });
 });

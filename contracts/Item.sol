@@ -157,7 +157,7 @@ contract Item {
         require(msg.value == userItems[itemIndex].price, "Incorrect amount of ether/wei sent.");
 
         // Create a new Escrow contract instance
-        Escrow escrow = (new Escrow){value: msg.value}(msg.sender, payable(_seller));
+        Escrow escrow = (new Escrow){value: msg.value}(payable(msg.sender), payable(_seller));
 
         // Update the item details
         userItems[itemIndex].buyer = msg.sender;
@@ -169,8 +169,9 @@ contract Item {
 
     event ItemCancelled(uint itemId, address buyer);
     event print_balance(uint balance);
+    event print_seller_balance(uint balance);
 
-    function cancelItem(uint _itemId, address _seller, bool cancel, bool refundBuyer) external {
+    function cancelItem(uint _itemId, address _seller, bool cancel, bool refundBuyer) public payable {
         ItemStruct[] storage userItems = items[_seller];
         bool itemFound = false;
         uint itemIndex;
@@ -194,6 +195,7 @@ contract Item {
 
         uint256 escrowBalance = address(userItems[itemIndex].escrow).balance;
         emit print_balance(escrowBalance);
+        emit print_seller_balance(address(_seller).balance);
 
         if(cancel == true) {
             // Refund the buyer
@@ -207,6 +209,7 @@ contract Item {
         userItems[itemIndex].escrow = Escrow(address(0)); // Reset escrow
 
         emit ItemCancelled(_itemId, msg.sender);
+        emit print_seller_balance(address(_seller).balance);
 
         console.log("Order canceled: %s by %s", userItems[itemIndex].title, msg.sender);
     }

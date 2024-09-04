@@ -13,7 +13,7 @@ contract Escrow {
     
     uint public boughtAt;
     State public currState;
-    address public buyer;
+    address payable public buyer;
     address payable public seller;
     address private arbitrator;
     string[] public disputeHistory;
@@ -39,7 +39,7 @@ contract Escrow {
         _;
     }
 
-    constructor(address _buyer, address payable _seller) payable {
+    constructor(address payable _buyer, address payable _seller) payable {
         buyer = _buyer;
         seller = _seller;
         arbitrator = 0x6A7d3230514Ee0E8078F23Cf65b367D9984b055A;
@@ -52,7 +52,7 @@ contract Escrow {
     
     function ship(string memory tracking) external onlySeller {
         require(currState == State.AWAITING_DELIVERY, "Cannot ship. Incorrect status.");
-        require(block.timestamp >= boughtAt + 1 minutes, "Cannot ship before 1-minute cancellation period has elapsed.");
+        require(block.timestamp >= boughtAt + 1 minutes, "Cannot ship before 15 minute cancellation period has elapsed.");
         currState = State.SHIPPED_OUT_BY_SELLER;
         trackingNumber = tracking;
         disputeHistory.push("Item sent by the seller.");
@@ -65,11 +65,11 @@ contract Escrow {
         disputeHistory.push("Item recieved by the buyer.");
     }
 
-    function refundBuyerForCancelItem() external {
+    function refundBuyerForCancelItem() payable external {
         require(currState == State.AWAITING_DELIVERY, "Cannot refund. Item has already been shipped or is in another state.");
         require(block.timestamp < boughtAt + 1 minutes, "Cancellation period has passed.");
 
-        payable(buyer).transfer(address(this).balance);
+        buyer.transfer(address(this).balance);
 
         currState = State.DISPUTE_CLOSED; // State updated to reflect the refund
         disputeHistory.push("Item cancelled and refunded to the buyer.");
@@ -97,10 +97,10 @@ contract Escrow {
         buyerProof = proof;
     }
 
-    function resolveDispute(bool refundBuyer) external onlyArbitrator {
+    function resolveDispute(bool refundBuyer) payable external onlyArbitrator {
         require(currState == State.DISPUTE_OPENED, "No active dispute");
         if (refundBuyer) {
-            payable(buyer).transfer(address(this).balance);
+            buyer.transfer(address(this).balance);
             disputeHistory.push("Dispute closed. Buyer was refunded.");
         } else {
             seller.transfer(address(this).balance);
