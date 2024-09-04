@@ -6,7 +6,7 @@ import Item from "./artifacts/contracts/Item.sol/Item.json";
 import Escrow from "./artifacts/contracts/Escrow.sol/Escrow.json"
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom';
-import { Menu, Row, Col, Form, Input, Button, Modal, message, Upload, Card, Tooltip, Tag, Drawer, Popconfirm } from 'antd';
+import { Menu, Empty, Row, Col, Form, Input, Button, Modal, message, Upload, Card, Tooltip, Tag, Drawer, Popconfirm } from 'antd';
 import { UserOutlined, ShoppingCartOutlined, LogoutOutlined, UploadOutlined, PlusOutlined, CloseOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined, HistoryOutlined } from '@ant-design/icons';
 
 function App() {
@@ -64,6 +64,7 @@ function App() {
                     responseType: 'blob', // Ensure we treat the response as a binary file
                   });
                   const imageUrl = URL.createObjectURL(response.data);
+                  const ethPrice = ethers.utils.formatUnits(item.price.toString(), 'ether');
 
                   let imageUrlSeller = null;
                   let imageUrlBuyer = null;    
@@ -87,6 +88,7 @@ function App() {
                     history,
                     imageUrlSeller,  // Add imageUrlSeller to the data
                     imageUrlBuyer,   // Add imageUrlBuyer to the data    
+                    ethPrice,
                   };
                 } catch (error) {
                   console.error(`Error fetching image for item ${item.id}:`, error);
@@ -96,6 +98,7 @@ function App() {
                     history: [],
                     imageUrlSeller: null,  // Add imageUrlSeller to the data
                     imageUrlBuyer: null,   // Add imageUrlBuyer to the data
+                    ethPrice: 0,
     
                   };
                 }
@@ -110,21 +113,21 @@ function App() {
     };
 
     const getItemHistory = async (item) => {
-        const { escrow } = item;
-        if (!escrow || escrow === ethers.constants.AddressZero) {
-          return null;
-        }
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
-    
-        try {
-          const transaction = await escrowContract.getDisputeHistory();
-          console.log(transaction)
-          return transaction;
-        } catch (error) {
-          handleError(error);
-        }
+      const { escrow } = item;
+      if (!escrow || escrow === ethers.constants.AddressZero) {
+        return null;
+      }
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+  
+      try {
+        const transaction = await escrowContract.getDisputeHistory();
+        console.log(transaction)
+        return transaction;
+      } catch (error) {
+        handleError(error);
+      }
     }
 
     const changeHistoryState = (item) => {
@@ -132,28 +135,23 @@ function App() {
         setOpenHistoryModal(true);
     }    
 
-    const refund = async (item, refundBuyer) => {
-        if (!contract || contract === ethers.constants.AddressZero) {
-            return null;
-        }
-
-        const { itemId, seller } = item;
-
-        try {
-            // Refund buyer or not
-            const transaction = await contract.cancelItem(Number(itemId.toString()), seller, false, refundBuyer);
-            await transaction.wait();
-
-            if(refundBuyer === true) {
-                message.success("Buyer was refunded.")
-            } else {
-                message.success("Seller was refunded.")
-            }
-        } catch (error ) {
-            handleError(error);
-        }
-
+  const refund = async (item, refundBuyer) => {
+    const { escrow } = item;
+    if (!escrow || escrow === ethers.constants.AddressZero) {
+      return null;
     }
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const escrowContract = new ethers.Contract(escrow, Escrow.abi, signer);
+
+    try {
+      const transaction = await escrowContract.resolveDispute(refundBuyer);
+      console.log(transaction)
+      return transaction;
+    } catch (error) {
+      handleError(error);
+    }
+  }
 
     return (
         <>
@@ -168,18 +166,19 @@ function App() {
                 {item.imageUrlBuyer !== "" && 
                     <>
                     <p>Buyer proof:</p>
-                    <img src={item.imageUrlBuyer} />
+                    <img src={item.imageUrlBuyer}  height={200} width={200} />
                     </>
                 }
-                {item.imageUrlBuyer !== "" && 
+                {item.imageUrlSeller !== "" && 
                     <>
                     <p>Seller proof:</p>
-                    <img src={item.imageUrlBuyer} />
+                    <img src={item.imageUrlSeller} height={200} width={200}/>
                     </>
                 }
             </Drawer>
             </Row>
             <Row>
+                {openedDisputeItems.length === 0 && <Empty />}
                 {openedDisputeItems.map((item, index) => (
                     <Col span={8} key={index}>
                         <Card
@@ -194,7 +193,7 @@ function App() {
                             ]}
                         >
                             <Meta title={item.title} description={item.description} />
-                            <Meta title={`${item.price.toString()} ETH`} />
+                            <Meta title={`${item.ethPrice} ETH`} />
                             <Button onClick={() => refund(item, true)}>Refund buyer</Button>,
                             <Button onClick={() => refund(item, false)}>Refund seller</Button>
 

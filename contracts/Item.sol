@@ -187,7 +187,7 @@ contract Item {
         require(itemFound, "Item not found");
         require(userItems[itemIndex].hasBuyer, "Item hasss not been purchased");
         require(userItems[itemIndex].buyer == msg.sender, "Only the buyer can cancel the order");
-        require(block.timestamp <= userItems[itemIndex].escrow.boughtAt() + 1 minutes, "Cancellation period has expired");
+        require(block.timestamp <= userItems[itemIndex].escrow.boughtAt() + 1 minutes, "Cancesllation period has expired");
 
         // Cancel the order
         userItems[itemIndex].hasBuyer = false;
