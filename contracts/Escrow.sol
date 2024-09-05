@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.24;
+import "hardhat/console.sol";
 
 contract Escrow {
     enum State { 
@@ -21,7 +23,7 @@ contract Escrow {
     string public sellerProof;
     string public buyerProof;
     bool public isDisputeOpen;
-    string private trackingNumber;
+    string public trackingNumber;
 
 
     modifier onlyBuyer() {
@@ -50,12 +52,13 @@ contract Escrow {
         isDisputeOpen = false;
     }
     
-    function ship(string memory tracking) external onlySeller {
+    function ship(string memory _tracking) external {
         require(currState == State.AWAITING_DELIVERY, "Cannot ship. Incorrect status.");
-        require(block.timestamp >= boughtAt + 1 minutes, "Cannot ship before 15 minute cancellation period has elapsed.");
+        require(block.timestamp >= boughtAt + 15 minutes, "Cannot ship before 15 minute cancellation period has elapsed.");
         currState = State.SHIPPED_OUT_BY_SELLER;
-        trackingNumber = tracking;
+        trackingNumber = _tracking;
         disputeHistory.push("Item sent by the seller.");
+        console.log("Tracking number set: %s ", trackingNumber);
     }
 
     function confirmDelivery() external onlyBuyer {
@@ -67,7 +70,7 @@ contract Escrow {
 
     function refundBuyerForCancelItem() payable external {
         require(currState == State.AWAITING_DELIVERY, "Cannot refund. Item has already been shipped or is in another state.");
-        require(block.timestamp < boughtAt + 1 minutes, "Cancellation period has passed.");
+        require(block.timestamp < boughtAt + 15 minutes, "Cancellation period has passed.");
 
         buyer.transfer(address(this).balance);
 
@@ -117,4 +120,5 @@ contract Escrow {
     function getState() external view returns (State, string memory, string memory, string memory) {
         return (currState, trackingNumber, sellerProof, buyerProof);
     }
+
 }

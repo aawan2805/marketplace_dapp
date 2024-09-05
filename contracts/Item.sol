@@ -187,7 +187,7 @@ contract Item {
         require(itemFound, "Item not found");
         require(userItems[itemIndex].hasBuyer, "Item hasss not been purchased");
         require(userItems[itemIndex].buyer == msg.sender, "Only the buyer can cancel the order");
-        require(block.timestamp <= userItems[itemIndex].escrow.boughtAt() + 1 minutes, "Cancesllation period has expired");
+        require(block.timestamp <= userItems[itemIndex].escrow.boughtAt() + 15 minutes, "Cancesllation period has expired");
 
         // Cancel the order
         userItems[itemIndex].hasBuyer = false;
@@ -292,7 +292,7 @@ contract Item {
 
         // Call the ship() method from the Escrow contract associated with this item
         userItems[itemIndex].escrow.ship(tracking);
-        console.log("Item shipped: %s by %s", userItems[itemIndex].title, msg.sender);
+        console.log("Item shipped: %s by %s and tracking number %s", userItems[itemIndex].title, msg.sender, tracking);
     }
 
     // Function to retrieve items with an opened dispute
